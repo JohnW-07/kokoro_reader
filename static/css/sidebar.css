@@ -1,0 +1,439 @@
+/* ── sidebar.css ──────────────────────────────────────────────────────────────
+   The left column: the sidebar and its tabs, playback controls, read options,
+   the sentence queue, and the rail it collapses to. Loaded after app.css.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+#sidebar {
+  position: fixed;
+  inset-block: 0;
+  left: 0;
+  z-index: 30;
+  width: var(--sidebar-w);
+  background: var(--panel);
+  border-right: var(--hairline) solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform var(--dur-panel) var(--ease-enter), opacity var(--dur-panel) var(--ease-enter);
+}
+/* Leaves to the left, and returns from the left. */
+body.sidebar-collapsed #sidebar {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition-timing-function: var(--ease-exit);
+}
+
+#sidebar-top {
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+#app-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--rail-btn);
+}
+#app-name {
+  font-size: var(--fs-headline);
+  letter-spacing: var(--tr-headline);
+  line-height: var(--lh-tight);
+  font-weight: 650;
+}
+
+.icon-btn {
+  margin-left: auto;
+  width: var(--rail-btn);
+  height: var(--rail-btn);
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--speed), color var(--speed), transform var(--dur-press) ease-out;
+}
+.icon-btn:hover { background: var(--hover-bg); color: var(--text); }
+.icon-btn:active { background: var(--pressed-bg); transform: scale(var(--press-scale)); }
+
+#drop-zone {
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-2);
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--speed), border-color var(--speed), color var(--speed), transform var(--dur-press) ease-out;
+  font-size: var(--fs-body);
+  letter-spacing: var(--tr-body);
+  color: var(--text-muted);
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+#drop-zone:hover, #drop-zone.hover, #drop-zone:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  outline: none;
+}
+#drop-zone:active { transform: scale(var(--press-scale)); }
+#drop-zone.loaded {
+  border-color: var(--success);
+  border-style: solid;
+  background: var(--success-dim);
+  color: var(--success);
+  font-weight: 500;
+}
+
+#status-bar {
+  background: var(--panel-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-footnote);
+  letter-spacing: var(--tr-footnote);
+  color: var(--text-muted);
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  line-height: var(--lh-tight);
+}
+#status-bar.loading    { color: var(--accent); }
+#status-bar.error      { color: var(--danger); }
+#status-bar.warn       { color: var(--warn); }
+#status-bar.recovering { color: var(--warn); }
+
+.spinner {
+  width: 11px; height: 11px;
+  border: 2px solid var(--accent-ring);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Tabs: a segmented control ──────────────────────────────────────────── */
+#tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 var(--space-3) var(--space-1);
+  padding: 2px;
+  background: var(--hover-bg);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.tab {
+  flex: 1 1 auto;
+  background: none;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-footnote);
+  letter-spacing: var(--tr-footnote);
+  font-weight: 500;
+  padding: var(--space-1) 0;
+  /* The tabs share 19rem, each as wide as its label; a label that cannot fit ends in an ellipsis. */
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background var(--speed), box-shadow var(--speed), transform var(--dur-press) ease-out;
+}
+.tab:hover:not(.active) { background: var(--pressed-bg); }
+.tab:active { transform: scale(var(--press-scale)); }
+.tab.active { background: var(--panel-2); box-shadow: var(--shadow-segment); font-weight: 600; }
+
+.tab-panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
+.tab-panel.active { display: flex; }
+/* R7: the settings outgrow a short window; the panel scrolls rather than clipping them. */
+#tab-settings { overflow-y: auto; }
+
+/* ── Contents (N7): chapters, with their sections folded under a disclosure ── */
+#toc-panel { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-1) var(--space-3) var(--space-3); }
+/* R2: the entry a click selected (a double-click or Enter reads from it): an outline, so it never
+   reads as the tinted entry being read. */
+.toc-link.is-selected { box-shadow: inset 0 0 0 var(--hairline) var(--accent); }
+.toc-note, .toc-empty { margin: var(--space-2) 0; color: var(--text-muted); font-size: var(--fs-footnote); }
+.toc-tree, .toc-children { list-style: none; margin: 0; padding: 0; }
+.toc-children { padding-left: var(--space-4); }
+.toc-children[hidden] { display: none; }
+.toc-item { position: relative; }
+.toc-twisty {
+  position: absolute;
+  left: calc(-1 * var(--space-4));
+  top: 0;
+  width: var(--space-4);
+  height: calc(var(--fs-body) * var(--lh-list) + 2 * var(--space-1));
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.toc-twisty::before { content: "▸"; display: inline-block; transition: transform var(--speed); }
+.toc-twisty[aria-expanded="true"]::before { transform: rotate(90deg); }
+.toc-tree { padding-left: var(--space-4); }
+.toc-link {
+  display: flex;
+  width: 100%;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  text-align: left;
+  cursor: pointer;
+}
+.toc-tree > .toc-item > .toc-link { font-weight: 600; }
+.toc-link:hover { background: var(--hover-bg); }
+.toc-title { flex: 1; min-width: 0; }
+.toc-page { color: var(--text-muted); font-size: var(--fs-footnote); font-variant-numeric: tabular-nums; }
+.toc-link[aria-current="location"] { background: var(--accent-dim); color: var(--accent); }
+/* A folded chapter that holds the reader says so. */
+.toc-item.has-current > .toc-twisty[aria-expanded="false"] { color: var(--accent); }
+
+/* ── Controls ───────────────────────────────────────────────────────────── */
+.stack { padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+
+.label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tr-label);
+  color: var(--text-muted);
+}
+
+select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--input-bg);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body);
+  letter-spacing: var(--tr-body);
+  cursor: pointer;
+}
+select:focus { outline: 2px solid var(--accent-ring); border-color: var(--accent); }
+
+.speed-row { display: flex; align-items: center; gap: var(--space-2); }
+input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: var(--radius-pill);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  background: var(--panel-2);
+  border: var(--hairline) solid var(--border);
+  box-shadow: var(--shadow-segment);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--dur-press) ease-out;
+}
+input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); }
+#speedVal {
+  font-size: var(--fs-footnote);
+  color: var(--text-muted);
+  min-width: 2.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#transport { display: flex; gap: var(--space-1); }
+.t-btn {
+  flex: 1;
+  height: var(--rail-btn);
+  background: var(--input-bg);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--speed), border-color var(--speed), transform var(--dur-press) ease-out;
+}
+.t-btn:hover:not(:disabled) { background: var(--hover-bg); }
+.t-btn:active:not(:disabled) { background: var(--pressed-bg); transform: scale(var(--press-scale)); }
+.t-btn.t-play { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.t-btn.t-play:hover:not(:disabled) { background: var(--accent-hover); }
+.t-btn:disabled { opacity: 0.4; cursor: default; }
+#recoverBtn.attention { border-color: var(--warn); color: var(--warn); }
+/* R1: your scroll holds a switched-on follow (U28): outlined, and a press brings the page back. */
+#followBtn.attention { border-color: var(--accent); }
+/* The follow switch (N12) on: tinted, unlike the held outline, so "lit" never means two things.
+   A class, not the id, so hover and press still show over it. */
+.t-btn[aria-checked="true"] { background: var(--accent-dim); color: var(--accent); }
+
+/* N1 buffer meter: like a video's buffered range, how much audio after the cursor is
+   ready. R4: drawn over the status field's bottom edge, inside its border and clear of
+   its rounded corners, so it reads as that field's progress. Out of the flow, it is
+   thinner than the field's bottom padding: the status text never moves for it. */
+#status-field { position: relative; }
+#bufferbar {
+  position: absolute;
+  inset-inline: var(--radius-sm);
+  bottom: var(--hairline);
+  --buffer-h: 2px;
+  --sweep-w: 40%;
+  --sweep-travel: 250%;   /* 100% / --sweep-w: the sweep leaves the track's far edge */
+  --sweep-dur: 1.2s;
+}
+#bufferbar[hidden] { display: none; }
+.bufferbar-track {
+  position: relative;
+  height: var(--buffer-h);
+  border-radius: var(--radius-pill);
+  background: var(--hover-bg);
+  overflow: hidden;
+}
+.bufferbar-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-ring);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform var(--dur-fade) var(--ease-enter);
+}
+/* Its words ("Loading voice model…") are for assistive tech: a second line would move the field. */
+.bufferbar-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Model loading: an indeterminate sweep (a11y.css stills it under reduced motion). */
+#bufferbar.is-loading .bufferbar-fill {
+  right: auto;
+  width: var(--sweep-w);
+  background: var(--accent);
+  transition: none;
+  animation: buffer-sweep var(--sweep-dur) var(--ease-enter) infinite;
+}
+@keyframes buffer-sweep { from { transform: translateX(-100%); } to { transform: translateX(var(--sweep-travel)); } }
+
+/* ── Read options ───────────────────────────────────────────────────────── */
+#read-options, #scroll-options {
+  background: var(--panel-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+#read-options summary, #scroll-options summary { cursor: pointer; list-style: none; }
+#read-options summary::-webkit-details-marker, #scroll-options summary::-webkit-details-marker { display: none; }
+#read-options summary::before, #scroll-options summary::before { content: "▸ "; color: var(--text-muted); }
+#read-options[open] summary::before, #scroll-options[open] summary::before { content: "▾ "; }
+
+.opts { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.opts label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-body);
+  letter-spacing: var(--tr-body);
+  cursor: pointer;
+  color: var(--text);
+}
+.opts input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.opts label.disabled { opacity: 0.5; cursor: default; }
+.hint { color: var(--text-muted); font-size: var(--fs-caption); letter-spacing: var(--tr-caption); }
+
+.ghost-btn {
+  margin-top: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) 0;
+  background: var(--input-bg);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-footnote);
+  cursor: pointer;
+  transition: background var(--speed), border-color var(--speed), transform var(--dur-press) ease-out;
+}
+.ghost-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); }
+.ghost-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.ghost-btn:disabled { color: var(--text-muted); opacity: 0.6; cursor: default; }
+
+/* ── Contents in the Read tab (R2): where the sentence queue was; the tree scrolls ── */
+#toc-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: var(--hairline) solid var(--border);
+}
+#toc-header { padding: var(--space-2) var(--space-3) 0; }
+
+/* ── Collapsed rail: floating translucent toolbar at the left edge ──────── */
+#rail {
+  position: fixed;
+  top: var(--gutter);
+  left: var(--gutter);
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--rail-pad);
+  background: var(--material-bg);
+  -webkit-backdrop-filter: var(--material-blur);
+  backdrop-filter: var(--material-blur);
+  border: var(--hairline) solid var(--material-border);
+  box-shadow: inset 0 1px 0 var(--material-edge), var(--shadow-float);
+  border-radius: var(--radius-lg);
+  /* Parked just past the left edge — the same place the sidebar went. */
+  transform: translateX(calc(-100% - var(--gutter)));
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-panel) var(--ease-exit), opacity var(--dur-panel) var(--ease-exit);
+}
+body.sidebar-collapsed #rail {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+  transition-timing-function: var(--ease-enter);
+}
+.rail-sep { width: 60%; height: var(--hairline); background: var(--border); margin: var(--space-1) 0; }
+.rail-btn {
+  width: var(--rail-btn);
+  height: var(--rail-btn);
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--speed), transform var(--dur-press) ease-out;
+}
+.rail-btn:hover:not(:disabled) { background: var(--hover-bg); }
+.rail-btn:active:not(:disabled) { background: var(--pressed-bg); transform: scale(var(--press-scale)); }
+.rail-btn:disabled { opacity: 0.4; cursor: default; }
+.rail-btn.t-play:not(:disabled) { color: var(--accent); }
+#railFollowBtn.attention:not(:disabled) { color: var(--accent); background: var(--accent-dim); }
+#railFollowBtn[aria-checked="true"] { color: var(--accent); }
+.rail-speed {
+  font-size: var(--fs-caption);
+  letter-spacing: var(--tr-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

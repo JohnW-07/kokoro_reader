@@ -1,0 +1,9 @@
+{
+  "name": "kokoro-reader",
+  "private": true,
+  "type": "module",
+  "description": "Front-end modules for Kokoro Reader. No build step and no runtime dependencies; this file exists so Node can load static/js/*.js as ES modules for the test harnesses.",
+  "scripts": {
+    "test": "node tests/js/run.mjs"
+  }
+}

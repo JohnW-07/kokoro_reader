@@ -1,0 +1,302 @@
+/* ── document.css ─────────────────────────────────────────────────────────────
+   The document area: the page track, the floating view readouts and notes
+   handle, the pdf.js text layer, the read-from-here menu; then the toast
+   and the scrollbars. Loaded after sidebar.css.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Document area ──────────────────────────────────────────────────────── */
+#content-area {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+  /* The view readouts get a strip of their own, so no scroll position puts them over text. */
+  margin-top: var(--status-band);
+  padding: var(--space-4) var(--gutter) var(--space-6);
+  scroll-behavior: smooth;
+}
+
+/* Floats like the sidebar rather than sitting in the body's flex row: the panel can then
+   slide out over 320ms while the space it frees is handed to the PDF in one step, so the
+   fit-to-width pass runs once instead of once per animated frame. */
+#notes-column {
+  position: fixed;
+  inset-block: 0;
+  right: 0;
+  z-index: 30;
+  width: var(--notes-w-current);
+  overflow-y: auto;
+  background: var(--notes-bg);
+  border-left: var(--hairline) solid var(--border);
+  transition: transform var(--dur-panel) var(--ease-enter), opacity var(--dur-panel) var(--ease-enter);
+  display: flex;
+  flex-direction: column;
+}
+/* R3: the Highlights list (notes.js) heads the column at its own height, up to a cap past
+   which its list scrolls inside it; the notes editor takes the rest. Never taller than the
+   cap, so the margin notes keep most of the column. The id outranks notes.css's .nt-panel. */
+#notes-panel {
+  flex: none;
+  max-height: var(--highlights-max-h);
+  min-height: 0;
+  border-bottom: var(--hairline) solid var(--border);
+}
+/* Leaves to the right, and returns from the right — the mirror of the sidebar. */
+body.notes-collapsed #notes-column {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  transition-timing-function: var(--ease-exit);
+}
+
+/* The view's readouts and the notes handle, kept together in one corner so the page keeps
+   the rest. The cluster is pinned to the notes column's edge, so the handle sits against
+   what it opens and closes. It sits in the strip above the document area, centred in it. */
+#view-status {
+  position: fixed;
+  top: 0;
+  height: var(--status-band);
+  right: calc(var(--notes-current) + var(--space-5));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Travels with the edge it is pinned to, on the panel's own clock: the handle would
+     otherwise jump to the window edge while the column it belongs to is still sliding. */
+  transition: right var(--dur-panel) var(--ease-enter);
+}
+body.notes-collapsed #view-status { transition-timing-function: var(--ease-exit); }
+
+/* A `display` of an element's own outranks the UA sheet's `[hidden] { display: none }`, so
+   every JS-hidden element that sets one needs this, or it stays on screen with no paper open. */
+#zoom-pill[hidden], #transport[hidden], #toc-section[hidden], .rail-btn[hidden] { display: none; }
+#zoom-pill {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--material-bg);
+  -webkit-backdrop-filter: var(--material-blur);
+  backdrop-filter: var(--material-blur);
+  border: var(--hairline) solid var(--material-border);
+  box-shadow: var(--shadow-float);
+  border-radius: var(--radius-pill);
+}
+.zoom-btn, .zoom-level {
+  height: var(--zoom-btn);
+  border: none;
+  background: none;
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--speed), color var(--speed);
+}
+.zoom-btn {
+  width: var(--zoom-btn);
+  font-size: var(--fs-callout);
+  line-height: 1;
+}
+.zoom-level {
+  min-width: 3.5rem;
+  padding: 0 var(--space-1);
+  font-size: var(--fs-footnote);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.zoom-btn:hover:not(:disabled), .zoom-level:hover { background: var(--hover-bg); }
+.zoom-btn:active:not(:disabled), .zoom-level:active { background: var(--pressed-bg); }
+.zoom-btn:disabled { opacity: 0.35; cursor: default; }
+
+#page-pill, #eta-pill {
+  background: var(--material-bg);
+  -webkit-backdrop-filter: var(--material-blur);
+  backdrop-filter: var(--material-blur);
+  border: var(--hairline) solid var(--material-border);
+  box-shadow: var(--shadow-float);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--fs-footnote);
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+#page-pill:hover { background: var(--hover-bg); }
+/* "Go to page" (N8) takes the pill's place while it is open. */
+#view-status.is-going #page-pill { display: none; }
+#page-go-input {
+  width: 6rem;
+  padding: var(--space-1) var(--space-3);
+  border: var(--hairline) solid var(--material-border);
+  border-radius: var(--radius-pill);
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-footnote);
+  font-variant-numeric: tabular-nums;
+}
+#page-go-input[aria-invalid="true"] { border-color: var(--danger); }
+
+/* N11: the ETA rides beside the page pill, quieter; a narrow window (layout.js NARROW_QUERY) keeps only the page. */
+#eta-pill { color: var(--text-muted); font-weight: 400; white-space: nowrap; }
+@media (max-width: 900px) { #eta-pill { display: none; } }
+
+/* The notes handle: one button, present in both states, in the same floating material as
+   the rail it faces across the window. Accent while the column is open, the way the rail
+   tints its active control, so the button reads as a state and not just a door. */
+.status-btn {
+  width: var(--status-btn);
+  height: var(--status-btn);
+  display: grid;
+  place-items: center;
+  background: var(--material-bg);
+  -webkit-backdrop-filter: var(--material-blur);
+  backdrop-filter: var(--material-blur);
+  border: var(--hairline) solid var(--material-border);
+  box-shadow: var(--shadow-float);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--speed), color var(--speed), transform var(--dur-press) ease-out;
+}
+.status-btn[aria-expanded="true"] { color: var(--accent); }
+.status-btn:hover { background: var(--hover-bg); }
+.status-btn:active { background: var(--pressed-bg); transform: scale(var(--press-scale)); }
+
+#welcome {
+  max-width: 28rem;
+  margin: 14vh auto 0;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 0 var(--space-5);
+}
+#welcome h2 {
+  color: var(--text);
+  font-size: var(--fs-title);
+  letter-spacing: var(--tr-title);
+  line-height: var(--lh-tight);
+  margin-bottom: var(--space-2);
+  font-weight: 650;
+}
+#welcome p { font-size: var(--fs-callout); line-height: var(--lh-loose); }
+#welcome .tiny { font-size: var(--fs-footnote); margin-top: var(--space-3); }
+
+/* min-width: a page zoomed past the column widens the track it is centred in, so the
+   left half stays scrollable instead of being clipped by `align-items: center`. */
+#pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--page-gap);
+  /* Zoomed past the column, the centring track must grow with the page, or the
+     left edge is clipped where the scroller cannot reach it. */
+  min-width: fit-content;
+}
+
+.pdf-page-wrap {
+  position: relative;
+  flex-shrink: 0;
+  background: #fff;   /* paper, not a theme colour: PDFs assume white */
+  border-radius: 3px;
+  box-shadow: var(--shadow-page);
+  overflow: hidden;
+}
+.pdf-page-wrap canvas { display: block; }
+
+/* ── pdf.js text layer + reading highlight ──────────────────────────────── */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1;
+  z-index: 2;
+  /* pdf.js sizes each span from untracked glyph widths. The UI's tracking must
+     not inherit into it, or every span (and the reading highlight and selection
+     drawn from it) falls short of the words underneath. */
+  letter-spacing: normal;
+  word-spacing: normal;
+  /* pywebview (text_select=False, its default) injects `body { user-select: none }`,
+     which leaves nothing on the page selectable, so no highlight can start. The
+     text layer is the one place selection belongs; the app chrome stays unselectable. */
+  -webkit-user-select: text;
+  user-select: text;
+}
+.textLayer > span {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.textLayer ::selection { background: var(--selection-bg); }
+
+.textLayer > span.reading {
+  background: var(--reading-bg);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1.5px var(--reading-bg);
+}
+
+/* The user-highlight overlay pdfview.js creates; notes.css styles its contents. */
+.hl-layer { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.hl-layer .hl-rect { pointer-events: auto; }
+
+/* ── Read-from-here menu: opens at the pointer, grows from that corner (§7, §12) ── */
+.read-menu {
+  position: fixed;
+  z-index: 70;
+  display: none;
+  min-width: 10.5rem;
+  padding: var(--space-1);
+  background: var(--material-bg);
+  -webkit-backdrop-filter: var(--material-blur);
+  backdrop-filter: var(--material-blur);
+  border: var(--hairline) solid var(--material-border);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 0 var(--material-edge), var(--shadow-float);
+}
+.read-menu.is-open { display: block; animation: read-menu-in var(--dur-fade) var(--ease-enter); }
+@keyframes read-menu-in { from { opacity: 0; transform: scale(var(--press-scale)); } }
+.read-menu-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: calc(var(--radius-sm) - var(--space-1));
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body);
+  letter-spacing: var(--tr-body);
+  text-align: left;
+  cursor: default;
+}
+.read-menu-item:hover, .read-menu-item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
+.read-menu-item:active { background: var(--accent-hover); color: var(--on-accent); }
+
+/* ── Toast ──────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-body);
+  letter-spacing: var(--tr-body);
+  color: var(--text);
+  box-shadow: var(--shadow-float);
+  z-index: 200;
+  max-width: 60vw;
+}
+#toast.warn  { border-color: var(--warn);  color: var(--warn); }
+#toast.error { border-color: var(--danger); color: var(--danger); }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: var(--radius-pill); border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--text-muted); }

@@ -1,0 +1,18 @@
+/* ── summary.css ──────────────────────────────────────────────────────────────
+   The Summary tab (summarypanel.js, N9). Buttons reuse .ghost-btn; only the
+   app.css tokens, no colours of its own.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#tab-summary { overflow-y: auto; padding: 0 var(--space-3) var(--space-3); }
+
+.summary-actions { display: flex; flex-direction: column; }
+.summary-status { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--fs-footnote); line-height: var(--lh-body); }
+.summary-status:empty { display: none; }
+.summary-status[data-level="warn"] { color: var(--text); }
+
+.summary-result { margin-top: var(--space-3); }
+.summary-heading { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-footnote); }
+.summary-text { margin: 0; font-size: var(--fs-callout); line-height: var(--lh-loose); }
+.summary-sentence { border-radius: 3px; transition: background var(--speed); }
+.summary-sentence.current { background: var(--reading-bg); }
+.summary-note { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--fs-caption); font-style: italic; }

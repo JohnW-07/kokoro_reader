@@ -1,0 +1,14 @@
+{
+  "_comment": "Contract between static/js/pdfview.js normaliseRepeatKey and kokoro_reader/textpipe/classify.py normalize_key. The browser computes the `repeated` set with one and the server applies the header rule with the other; if they drift, running heads are silently read aloud again. Both test suites assert against this file.",
+  "cases": [
+    ["34 Linear Algebra", "# linear algebra"],
+    ["2.4 Vector Spaces 35", "# # vector spaces #"],
+    ["Page 3 of 12", "page # of #"],
+    ["Page 17 of 12", "page # of #"],
+    ["Preprint. Under review.", "preprint under review"],
+    ["arXiv:2408.15980v2 [cs.RO] 27 Sep 2024", "arxiv # #v# cs ro # sep #"],
+    ["Under review as a conference paper at ICLR 2026", "under review as a conference paper at iclr #"],
+    ["  Mixed   WHITESPACE  ", "mixed whitespace"],
+    ["", ""]
+  ]
+}

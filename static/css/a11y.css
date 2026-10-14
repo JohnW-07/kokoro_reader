@@ -1,0 +1,42 @@
+/* ── a11y.css ─────────────────────────────────────────────────────────────────
+   Accessibility preference overrides for every chrome file. Loaded last of
+   the app sheets, so each override follows the rule it overrides.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Accessibility preferences (§14) ────────────────────────────────────── */
+/* Reduced motion: the sidebar and rail cross-fade in place instead of sliding;
+   presses keep their colour change but lose the scale. */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  #content-area { scroll-behavior: auto; }
+  #sidebar, body.sidebar-collapsed #sidebar,
+  #rail, body.sidebar-collapsed #rail,
+  #notes-column, body.notes-collapsed #notes-column {
+    transform: none;
+    transition: opacity var(--dur-fade) ease;
+  }
+  #view-status, body.notes-collapsed #view-status { transition: none; }
+  .icon-btn:active, .t-btn:active, .rail-btn:active, .zoom-btn:active, .status-btn:active,
+  .tab:active,
+  .ghost-btn:active, #drop-zone:active, input[type="range"]:active::-webkit-slider-thumb { transform: none; }
+  /* N1: no sweep; a still, full, dimmed track says "busy" and the label says what. */
+  #bufferbar.is-loading .bufferbar-fill { animation: none; width: auto; right: 0; transform: none; opacity: 0.4; }
+  .read-menu.is-open { animation-name: read-menu-fade; }
+  @keyframes read-menu-fade { from { opacity: 0; } }
+}
+
+/* Reduced transparency: floating chrome becomes a solid surface. */
+@media (prefers-reduced-transparency: reduce) {
+  #rail, #page-pill, #eta-pill, #zoom-pill, .status-btn, .read-menu {
+    background: var(--panel-2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* More contrast: solid chrome with a defined edge (colour tokens are raised in app.css's :root). */
+@media (prefers-contrast: more) {
+  #rail, #page-pill, #eta-pill, #zoom-pill, .status-btn, .read-menu { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  .tab.active { box-shadow: inset 0 0 0 var(--hairline) var(--border); }
+  .t-btn, .ghost-btn, select, #status-bar, #read-options, #scroll-options { border-color: var(--border); }
+}

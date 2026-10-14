@@ -1,0 +1,18 @@
+/* The stats button in the sidebar header and the dialog that holds stats.html. */
+#statsBtn + #collapseBtn { margin-left: 0; }
+
+#stats-dialog {
+  width: min(64rem, calc(100vw - 2 * var(--space-4)));
+  height: min(52rem, calc(100vh - 2 * var(--space-4)));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: var(--hairline) solid var(--material-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+  background: var(--bg);
+}
+#stats-dialog::backdrop { background: rgba(0, 0, 0, 0.32); }
+#stats-dialog iframe { display: block; width: 100%; height: 100%; border: 0; }

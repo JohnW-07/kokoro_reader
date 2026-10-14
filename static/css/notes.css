@@ -1,0 +1,370 @@
+/* ── notes.css ────────────────────────────────────────────────────────────────
+   highlights.js (page overlay, selection toolbar, popover) + notes.js (the
+   Highlights section at the top of the notes column). Every selector is scoped under .hl-layer / .hl-toolbar / .hl-popover /
+   .nt-panel so it cannot collide with the coordinator's app.css. Only the shared
+   custom properties from app.css are used, plus the highlight colours below.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+    /* Tints multiply onto white paper; the solids mark swatches, chips and bars. */
+    --hl-yellow: rgba(255, 204, 0, 0.38);
+    --hl-green:  rgba(52, 199, 89, 0.30);
+    --hl-blue:   rgba(0, 122, 255, 0.24);
+    --hl-pink:   rgba(255, 45, 85, 0.24);
+    --hl-yellow-solid: #ffcc00;
+    --hl-green-solid:  #34c759;
+    --hl-blue-solid:   #007aff;
+    --hl-pink-solid:   #ff2d55;
+    --swatch-edge:     rgba(0, 0, 0, 0.12);
+}
+
+/* ── Page overlay ─────────────────────────────────────────────────────────── */
+
+/* document.css also declares .hl-layer (pdfview.js creates it). Kept in agreement with
+   it — z-index 1 puts the overlay above the canvas but *below* the .textLayer, so
+   pdf.js keeps ownership of selection and the reading highlight. No overflow rule
+   here: .pdf-page-wrap already clips, and clipping would eat the dog-ear marker. */
+.hl-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.hl-layer .hl-rect {
+    position: absolute;
+    border-radius: 2px;
+    mix-blend-mode: multiply;
+    background: var(--hl-yellow);
+    transition: box-shadow 0.15s;
+}
+.hl-layer .hl-rect[data-color="green"] { background: var(--hl-green); }
+.hl-layer .hl-rect[data-color="blue"]  { background: var(--hl-blue); }
+.hl-layer .hl-rect[data-color="pink"]  { background: var(--hl-pink); }
+.hl-layer .hl-rect.is-active { box-shadow: 0 0 0 1.5px var(--accent); }
+.hl-layer .hl-rect:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Dog-ear marker: a highlight carrying a note is discoverable without hovering. */
+.hl-layer .hl-rect.has-note::after {
+    content: "";
+    position: absolute;
+    right: -3px; top: -3px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 1.5px var(--scrim-dot);
+    mix-blend-mode: normal;
+}
+
+/* ── Floating chrome ──────────────────────────────────────────────────────── */
+
+.hl-toolbar,
+.hl-popover {
+    position: fixed;
+    z-index: 60;
+    display: none;
+    background: var(--panel-2);
+    border: 1px solid var(--material-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-float);
+    color: var(--text);
+    font-family: inherit;
+}
+.hl-toolbar.is-open { display: flex; }
+.hl-popover.is-open { display: block; }
+.hl-toolbar { align-items: center; gap: 5px; padding: 5px 7px; }
+.hl-toolbar .hl-sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; }
+
+.hl-toolbar .hl-swatch,
+.hl-popover .hl-swatch {
+    width: 16px; height: 16px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--swatch-edge);
+    cursor: pointer;
+    background: var(--hl-yellow-solid);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.hl-swatch[data-color="green"] { background: var(--hl-green-solid); }
+.hl-swatch[data-color="blue"]  { background: var(--hl-blue-solid); }
+.hl-swatch[data-color="pink"]  { background: var(--hl-pink-solid); }
+.hl-swatch:hover { transform: scale(1.15); }
+.hl-swatch:active { transform: scale(var(--press-scale)); }
+.hl-swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.hl-toolbar .hl-act {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 3px 7px;
+    font-size: 0.8rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.hl-toolbar .hl-act:hover { background: var(--hover-bg); border-color: var(--accent); }
+.hl-toolbar .hl-act:active { background: var(--pressed-bg); transform: scale(var(--press-scale)); }
+.hl-toolbar .hl-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ── Highlight popover ────────────────────────────────────────────────────── */
+
+.hl-popover { width: 236px; padding: 9px; }
+.hl-popover .hl-pop-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.hl-popover .hl-pop-hint { margin-top: 6px; font-size: 0.66rem; color: var(--text-muted); }
+
+.hl-popover .hl-del {
+    margin-left: auto;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 3px 7px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.hl-popover .hl-del:hover,
+.hl-popover .hl-del.is-confirming {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: var(--danger-dim);
+}
+
+.hl-popover .hl-note {
+    width: 100%;
+    min-height: 62px;
+    resize: vertical;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    padding: 7px 8px;
+}
+.hl-popover .hl-note:focus { outline: none; border-color: var(--accent); }
+
+/* ── Notes panel: header + filters ────────────────────────────────────────── */
+
+.nt-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    gap: 8px;
+    padding: 10px 14px 14px;
+}
+.nt-panel.is-collapsed { padding-bottom: 10px; }
+.nt-panel .nt-head { display: flex; align-items: center; gap: 8px; }
+/* The heading folds the list (R3): the whole "▸ HIGHLIGHTS 12" run is the button. */
+.nt-panel .nt-disclosure {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: auto;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+.nt-panel .nt-chevron::before { content: "\25B8"; content: "\25B8" / ""; }
+.nt-panel .nt-chevron { display: inline-block; font-size: 0.65rem; color: var(--text-muted); transition: transform 0.15s; }
+.nt-panel .nt-disclosure[aria-expanded="true"] .nt-chevron { transform: rotate(90deg); }
+.nt-panel .nt-count { font-size: 0.72rem; color: var(--text-muted); }
+.nt-panel .nt-content { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+.nt-panel .nt-content[hidden] { display: none; }
+.nt-panel .nt-export { display: flex; gap: 4px; }
+.nt-panel .nt-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nt-panel .nt-chips { display: flex; gap: 4px; }
+.nt-panel button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.nt-panel .nt-mini {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    font-family: inherit;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.nt-panel .nt-mini:hover { color: var(--text); border-color: var(--accent); }
+.nt-panel .nt-mini:active, .nt-panel .nt-toggle:active, .nt-panel .nt-more:active { background: var(--pressed-bg); }
+.nt-panel .nt-danger:hover { color: var(--danger); border-color: var(--danger); }
+
+.nt-panel .nt-chip {
+    width: 13px; height: 13px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    opacity: 0.45;
+    background: var(--hl-yellow-solid);
+    transition: opacity 0.15s, box-shadow 0.15s;
+}
+.nt-panel .nt-chip[data-color="green"] { background: var(--hl-green-solid); }
+.nt-panel .nt-chip[data-color="blue"]  { background: var(--hl-blue-solid); }
+.nt-panel .nt-chip[data-color="pink"]  { background: var(--hl-pink-solid); }
+.nt-panel .nt-chip.is-on { opacity: 1; box-shadow: 0 0 0 1.5px var(--accent); }
+
+.nt-panel .nt-search {
+    flex: 1;
+    min-width: 90px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.76rem;
+    padding: 5px 8px;
+}
+.nt-panel .nt-search:focus { outline: none; border-color: var(--accent); }
+
+.nt-panel .nt-toggle {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 4px 7px;
+    font-size: 0.65rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.nt-panel .nt-toggle.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+/* ── Notes panel: rows ────────────────────────────────────────────────────── */
+
+.nt-panel .nt-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 0;
+}
+.nt-panel .nt-list::-webkit-scrollbar { width: 3px; }
+.nt-panel .nt-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.nt-panel .nt-page-head {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding: 8px 2px 3px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+}
+
+.nt-panel .nt-row {
+    display: flex;
+    gap: 7px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.nt-panel .nt-row:hover { background: var(--hover-bg); }
+.nt-panel .nt-row:active { background: var(--pressed-bg); }
+.nt-panel .nt-row.is-active { background: var(--accent-dim); border-left-color: var(--accent); }
+.nt-panel .nt-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.nt-panel .nt-bar { width: 3px; border-radius: 2px; flex-shrink: 0; background: var(--hl-yellow-solid); }
+.nt-panel .nt-bar[data-color="green"] { background: var(--hl-green-solid); }
+.nt-panel .nt-bar[data-color="blue"]  { background: var(--hl-blue-solid); }
+.nt-panel .nt-bar[data-color="pink"]  { background: var(--hl-pink-solid); }
+.nt-panel .nt-body { flex: 1; min-width: 0; }
+
+.nt-panel .nt-text {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
+.nt-panel .nt-note {
+    margin-top: 4px;
+    font-size: 0.73rem;
+    font-style: italic;
+    line-height: 1.45;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+    cursor: text;
+}
+.nt-panel .nt-note.is-empty { opacity: 0.5; }
+.nt-panel .nt-note:hover { color: var(--text); }
+
+.nt-panel .nt-editor {
+    margin-top: 4px;
+    width: 100%;
+    resize: vertical;
+    background: var(--input-bg);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    padding: 5px 7px;
+}
+.nt-panel .nt-editor:focus { outline: none; }
+
+.nt-panel .nt-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 5px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+.nt-panel .nt-page { margin-right: auto; }
+.nt-panel .nt-confirm { color: var(--danger); }
+
+.nt-panel .nt-more {
+    margin-top: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 6px 0;
+    font-family: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.nt-panel .nt-more:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+
+.nt-panel .nt-empty { padding: 26px 10px; text-align: center; color: var(--text-muted); }
+.nt-panel .nt-empty-title { font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.nt-panel .nt-empty-hint { font-size: 0.74rem; line-height: 1.6; max-width: 230px; margin: 0 auto; }
+
+/* ── Motion ───────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .hl-layer .hl-rect,
+    .hl-toolbar .hl-act,
+    .hl-swatch,
+    .nt-panel .nt-row,
+    .nt-panel .nt-chip,
+    .nt-panel .nt-mini,
+    .nt-panel .nt-toggle,
+    .nt-panel .nt-more {
+        transition: none;
+    }
+    .hl-swatch:hover, .hl-swatch:active, .hl-toolbar .hl-act:active { transform: none; }
+}

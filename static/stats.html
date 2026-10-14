@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Reading Wrapped</title>
+<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/stats.css">
+</head>
+<body class="stats-page">
+<main id="stats" aria-labelledby="st-title">
+  <header class="st-head">
+    <div>
+      <p class="st-kicker">Kokoro Reader · Wrapped</p>
+      <h1 id="st-title"><span id="st-range">Your year</span> in listening</h1>
+    </div>
+    <div class="st-tools">
+      <label class="st-picker">
+        <span class="st-label">Period</span>
+        <select id="st-year" aria-label="Period"></select>
+      </label>
+      <button class="st-btn" id="st-close" type="button" hidden>Close</button>
+    </div>
+  </header>
+
+  <p id="st-status" class="st-status" role="status" aria-live="polite"></p>
+
+  <section class="st-hero" aria-labelledby="st-hero-label">
+    <p class="st-label" id="st-hero-label">Time listening</p>
+    <p class="st-hero-number"><span id="st-hero-value">0</span> <span id="st-hero-unit">minutes</span></p>
+    <p class="st-hero-sub" id="st-hero-sub"></p>
+  </section>
+
+  <!-- N11: shown only when opened from the reader with a paper open (statsdialog.js). -->
+  <section class="st-panel" id="st-paper-panel" aria-labelledby="st-paper-title" hidden>
+    <h2 id="st-paper-title">This paper</h2>
+    <p class="st-note" id="st-paper-name"></p>
+    <div class="st-grid st-grid-small" id="st-paper"></div>
+  </section>
+
+  <section aria-label="Your numbers">
+    <div class="st-grid" id="st-cards"></div>
+  </section>
+
+  <section class="st-panel" aria-labelledby="st-hours-title">
+    <h2 id="st-hours-title">When you listen</h2>
+    <div class="st-bars" id="st-hours" role="img"></div>
+    <div class="st-axis" aria-hidden="true"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>11 pm</span></div>
+  </section>
+
+  <div class="st-split">
+    <section class="st-panel" aria-labelledby="st-top-title">
+      <h2 id="st-top-title">Top papers</h2>
+      <ol class="st-top" id="st-top"></ol>
+    </section>
+    <section class="st-panel" aria-labelledby="st-moments-title">
+      <h2 id="st-moments-title">Moments</h2>
+      <dl class="st-moments" id="st-moments"></dl>
+    </section>
+  </div>
+
+  <section class="st-panel" aria-labelledby="st-machine-title">
+    <h2 id="st-machine-title">Under the hood</h2>
+    <div class="st-grid st-grid-small" id="st-machine"></div>
+    <table class="st-table" id="st-voices" hidden>
+      <caption class="st-label">By voice</caption>
+      <thead><tr><th scope="col">Voice</th><th scope="col">Phoneme tokens</th><th scope="col">Characters voiced</th></tr></thead>
+      <tbody id="st-voices-body"></tbody>
+    </table>
+  </section>
+
+  <section class="st-panel" aria-labelledby="st-fun-title">
+    <h2 id="st-fun-title">That's about…</h2>
+    <ul class="st-fun" id="st-fun"></ul>
+  </section>
+
+  <footer class="st-foot">
+    <p id="st-since" class="st-since"></p>
+    <div class="st-reset" id="st-reset">
+      <button class="st-btn st-quiet" id="st-reset-start" type="button">Reset stats…</button>
+      <div class="st-confirm" id="st-confirm" role="group" aria-labelledby="st-confirm-text" hidden>
+        <p id="st-confirm-text">Clear every stat? Your papers, highlights and notes stay.</p>
+        <button class="st-btn" id="st-reset-cancel" type="button">Cancel</button>
+        <button class="st-btn st-danger" id="st-reset-go" type="button">Reset stats</button>
+      </div>
+    </div>
+  </footer>
+</main>
+<script type="module" src="/static/js/stats.js"></script>
+</body>
+</html>

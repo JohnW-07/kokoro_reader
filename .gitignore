@@ -1,1 +1,14 @@
 venv/
+.venv/
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+.serena/
+.claude/settings.local.json
+node_modules/
+*.wav
+
+# Local agent state and worktrees
+.claude/session-state/
+.claude/worktrees/

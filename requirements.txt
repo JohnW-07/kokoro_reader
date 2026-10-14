@@ -1,0 +1,22 @@
+# Runtime dependencies — the packages this repo's own code imports, pinned to the
+# versions it is developed and tested against. Transitive dependencies are left to
+# the resolver.
+#
+# Apple Silicon only: kokoro-mlx and mlx-lm are built on MLX, which has no CPU-only
+# or CUDA path here. See README.md.
+
+# Server + desktop window
+fastapi==0.136.3
+uvicorn==0.47.0
+pywebview==6.2.1
+pydantic==2.13.4
+
+# Speech synthesis. kokoro-mlx pulls in mlx and misaki[en]; misaki fetches the spaCy
+# en_core_web_sm model on the first English synthesis.
+kokoro-mlx==0.1.2
+numpy==2.4.6
+soundfile==0.13.1
+
+# Optional: the local LLM that rewrites equations into spoken English. The app runs
+# without it — kokoro_reader/llm.py degrades to pass-through when it is absent.
+mlx-lm==0.31.3

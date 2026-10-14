@@ -1,0 +1,127 @@
+/* ── subs.css ─────────────────────────────────────────────────────────────────
+   The Subs tab (subspanel.js). Scoped under .sub-panel; only the app.css tokens,
+   no colours of its own.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#tab-subs { overflow-y: auto; }
+
+.sub-intro { margin: 0; line-height: var(--lh-body); }
+
+.sub-panel .sub-input {
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--input-bg);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body);
+  letter-spacing: var(--tr-body);
+}
+.sub-panel .sub-input::placeholder { color: var(--text-muted); }
+.sub-panel .sub-input:focus { outline: 2px solid var(--accent-ring); border-color: var(--accent); }
+.sub-panel .sub-input[aria-invalid="true"] { border-color: var(--danger); }
+.sub-panel .sub-input[aria-invalid="true"]:focus { outline-color: var(--danger-dim); }
+
+/* ── Add form: a card, like the read options ── */
+.sub-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--panel-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+}
+.sub-field { margin-top: var(--space-1); }
+.sub-add-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.sub-case {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-footnote);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sub-case input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+
+.sub-add-btn {
+  padding: var(--space-1) var(--space-4);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: var(--fs-footnote);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--speed), transform var(--dur-press) ease-out;
+}
+.sub-add-btn:hover { background: var(--accent-hover); }
+.sub-add-btn:active { transform: scale(var(--press-scale)); }
+
+.sub-error {
+  margin: 0;
+  font-size: var(--fs-caption);
+  letter-spacing: var(--tr-caption);
+  color: var(--danger);
+}
+
+/* ── List ── */
+.sub-head { display: flex; align-items: baseline; justify-content: space-between; }
+.sub-count { font-size: var(--fs-caption); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.sub-empty { margin: 0; }
+
+.sub-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sub-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--panel-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.sub-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-1);
+}
+.sub-arrow { color: var(--text-muted); font-size: var(--fs-footnote); }
+.sub-row-foot { display: flex; align-items: center; justify-content: space-between; }
+
+.sub-delete {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fs-callout);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--speed), color var(--speed);
+}
+.sub-delete:hover { background: var(--danger-dim); color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sub-add-btn:active { transform: none; }
+}

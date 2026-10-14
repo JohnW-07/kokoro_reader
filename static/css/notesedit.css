@@ -1,0 +1,327 @@
+/* ── notesedit.css ────────────────────────────────────────────────────────────
+   noteseditor.js + slashmenu.js: the per-paper block editor in #notes-column
+   (T7). Every selector is scoped under .ne-* so it cannot collide with app.css
+   or notes.css, and every value comes from the shared tokens in app.css.
+   Light only (D6).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.ne-panel {
+    display: flex;
+    flex-direction: column;
+    /* Fills what the Highlights list above leaves of the column (R3). min-height: 100% would
+       overflow it by the list's height, and a column that scrolls drags the margin notes off
+       their anchors. In the section view it still grows, and the column scrolls. */
+    flex: 1 0 auto;
+    color: var(--text);
+}
+
+/* ── Header: the title and the save state ─────────────────────────────────── */
+
+.ne-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--notes-bg);
+    border-bottom: var(--hairline) solid var(--border);
+}
+
+.ne-heading {
+    font-size: var(--fs-caption);
+    letter-spacing: var(--tr-label);
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* The save state is a mark, not a word: at the column's 15rem floor the title, the word and
+   the switch do not fit on one row. The word stays in the element, zero-sized, for the live
+   region (and in the tooltip); the mark's alt text is empty so it is not read twice. */
+.ne-status {
+    font-size: 0;
+    color: var(--text-muted);
+    transition: color var(--speed) var(--ease-enter);
+}
+.ne-status::before {
+    font-size: var(--fs-caption);
+    font-weight: 600;
+}
+.ne-status[data-state="saving"]::before { content: "\2026"; content: "\2026" / ""; }
+.ne-status[data-state="saved"]::before { content: "\2713"; content: "\2713" / ""; }
+.ne-status[data-state="error"]::before { content: "!"; content: "!" / ""; }
+.ne-status[data-state="saved"] { color: var(--success); }
+.ne-status[data-state="error"] { color: var(--danger); }
+
+.ne-tools {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+}
+
+/* The view switch, "Margin | Sections": the sidebar tabs' segmented look at caption size.
+   The raised option is the view on screen; the other is one click (or arrow) away. */
+.ne-switch {
+    display: flex;
+    gap: 2px;
+    padding: 1px;
+    background: var(--hover-bg);
+    border-radius: var(--radius-sm);
+}
+.ne-switch[hidden] { display: none; }   /* no paper open: its own display outranks the UA rule */
+.ne-switch-opt {
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: calc(var(--radius-sm) - 1px);
+    background: none;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-caption);
+    letter-spacing: var(--tr-caption);
+    line-height: var(--lh-tight);
+    color: var(--text-muted);
+    transition: color var(--speed) var(--ease-enter), background var(--speed) var(--ease-enter);
+}
+.ne-switch-opt:hover { color: var(--text); }
+.ne-switch-opt[aria-checked="true"] {
+    background: var(--panel-2);
+    box-shadow: var(--shadow-segment);
+    color: var(--text);
+    font-weight: 600;
+    cursor: default;
+}
+
+/* ── The document ─────────────────────────────────────────────────────────── */
+
+.ne-doc {
+    flex: 1;
+    padding: var(--space-3) var(--space-4) var(--space-6);
+    font-size: var(--fs-body);
+    letter-spacing: var(--tr-body);
+    line-height: var(--lh-body);
+}
+
+.ne-hint {
+    margin: auto;
+    padding: var(--space-5) var(--space-4);
+    text-align: center;
+    font-size: var(--fs-footnote);
+    color: var(--text-muted);
+}
+
+.ne-block {
+    position: relative;      /* anchors the slash menu */
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: 2px 0;
+}
+
+.ne-text {
+    flex: 1;
+    min-width: 0;
+    min-height: 1.45em;
+    outline: none;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+.ne-text:focus { outline: none; }
+
+/* The prompt shows on the block being typed in, and on a brand-new empty note. */
+.ne-block.is-focused .ne-text:empty::before,
+.ne-note:only-child > .ne-block:only-child .ne-text:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+/* Some browsers leave a bogus <br> behind when the last character is deleted. */
+.ne-block.is-focused .ne-text:has(> br:only-child)::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+/* ── The two views ────────────────────────────────────────────────────────────
+   Same rows either way (U8): the margin view lifts each note out of the flow and
+   lets marginnotes.js put its top where the page it is pinned to now is, and the
+   section view leaves them in page order under the paper's own headings. */
+
+.ne-panel:not(.is-sections) .ne-doc {
+    position: relative;
+    /* The notes are placed against the viewport, so the column itself never scrolls
+       and a note whose page is off-screen is simply not drawn. */
+    overflow: hidden;
+}
+
+.ne-panel:not(.is-sections) .ne-note {
+    position: absolute;
+    top: 0;
+    left: var(--space-4);
+    right: var(--space-4);
+}
+
+/* Only in the section view, where the notes are in the flow and need separating. A
+   margin on an absolutely positioned note offsets it from the `top` the layout wrote,
+   which is its anchor: in the margin view the gap is the stack's job, not the box's. */
+.ne-panel.is-sections .ne-note + .ne-note { margin-top: var(--space-5); }
+
+/* A heading the paper wrote, not one the user typed: quieter than their own h1. */
+.ne-section {
+    margin: var(--space-5) 0 var(--space-2);
+    font-size: var(--fs-caption);
+    letter-spacing: var(--tr-label);
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: var(--hairline) solid var(--border);
+    padding-bottom: var(--space-1);
+}
+.ne-section:first-child { margin-top: 0; }
+.ne-section + .ne-note { margin-top: 0; }
+
+/* ── Block types ──────────────────────────────────────────────────────────── */
+
+.ne-h1 { margin-top: var(--space-4); }
+.ne-h2, .ne-h3 { margin-top: var(--space-3); }
+.ne-note > .ne-block:first-child { margin-top: 0; }
+
+.ne-h1 .ne-text {
+    font-size: var(--fs-title);
+    letter-spacing: var(--tr-title);
+    line-height: var(--lh-tight);
+    font-weight: 650;
+}
+.ne-h2 .ne-text {
+    font-size: var(--fs-headline);
+    letter-spacing: var(--tr-headline);
+    line-height: var(--lh-tight);
+    font-weight: 620;
+}
+.ne-h3 .ne-text {
+    font-size: var(--fs-callout);
+    letter-spacing: var(--tr-callout);
+    font-weight: 600;
+}
+
+.ne-marker {
+    flex: 0 0 auto;
+    min-width: 1.1rem;
+    text-align: right;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+}
+
+.ne-quote {
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--accent-ring);
+    color: var(--text-muted);
+    margin: var(--space-2) 0;
+}
+
+.ne-code .ne-text {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: var(--fs-footnote);
+    background: var(--panel-2);
+    border: var(--hairline) solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+}
+
+.ne-divider { padding: var(--space-3) 0; }
+.ne-rule {
+    flex: 1;
+    border: none;
+    border-top: var(--hairline) solid var(--border);
+}
+
+/* ── To-do ────────────────────────────────────────────────────────────────── */
+
+.ne-check {
+    position: relative;
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.15em;
+    padding: 0;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    cursor: pointer;
+    transition: background var(--speed), border-color var(--speed), transform var(--dur-press) ease-out;
+}
+.ne-check:hover { border-color: var(--accent); }
+.ne-check:active { transform: scale(var(--press-scale)); }
+.ne-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ne-check.is-checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+.ne-check.is-checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--on-accent);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+}
+.ne-todo .ne-check.is-checked ~ .ne-text {
+    color: var(--text-muted);
+    text-decoration: line-through;
+}
+
+/* ── The `/` menu ─────────────────────────────────────────────────────────── */
+
+.ne-slash {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: 60;
+    min-width: 13rem;
+    max-width: 100%;
+    max-height: 19rem;   /* the whole 11-command list, so nothing hides below a cut edge */
+    overflow-y: auto;
+    padding: var(--space-1);
+    background: var(--material-bg);
+    -webkit-backdrop-filter: var(--material-blur);
+    backdrop-filter: var(--material-blur);
+    border: var(--hairline) solid var(--material-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-float);
+}
+
+/* No room below the block: open upwards (slashmenu.js place()). */
+.ne-slash.is-above {
+    top: auto;
+    bottom: calc(100% + var(--space-1));
+}
+
+.ne-slash-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-footnote);
+    cursor: pointer;
+}
+.ne-slash-item.is-selected { background: var(--accent-dim); }
+.ne-slash-item.is-selected .ne-slash-label { color: var(--accent); font-weight: 550; }
+.ne-slash-label { color: var(--text); }
+.ne-slash-hint {
+    color: var(--text-muted);
+    font-size: var(--fs-caption);
+    letter-spacing: var(--tr-caption);
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ne-check, .ne-status, .ne-switch-opt { transition: none; }
+}

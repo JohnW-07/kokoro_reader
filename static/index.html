@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Kokoro Reader</title>
+<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/sidebar.css">
+<link rel="stylesheet" href="/static/css/document.css">
+<link rel="stylesheet" href="/static/css/a11y.css">
+<link rel="stylesheet" href="/static/css/notes.css">
+<link rel="stylesheet" href="/static/css/subs.css">
+<link rel="stylesheet" href="/static/css/summary.css">
+<link rel="stylesheet" href="/static/css/notesedit.css">
+<link rel="stylesheet" href="/static/css/statsdialog.css">
+<script src="/static/pdf.min.js"></script>
+</head>
+<body>
+
+<!-- Icon set: one glyph per control, drawn on a 20-unit grid in currentColor. -->
+<svg class="icon-sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-play" viewBox="0 0 20 20"><path d="M6.5 4.2v11.6c0 .6.7 1 1.2.6l9-5.8a.7.7 0 0 0 0-1.2l-9-5.8c-.5-.4-1.2 0-1.2.6Z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 20 20"><rect x="5" y="4" width="3.6" height="12" rx="1"/><rect x="11.4" y="4" width="3.6" height="12" rx="1"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 20 20"><rect x="3.5" y="4.5" width="2.2" height="11" rx="1"/><path d="M16 5.3v9.4c0 .6-.7 1-1.2.6L7.8 10.6a.7.7 0 0 1 0-1.2l7-4.7c.5-.4 1.2 0 1.2.6Z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 20 20"><rect x="14.3" y="4.5" width="2.2" height="11" rx="1"/><path d="M4 5.3v9.4c0 .6.7 1 1.2.6l7-4.7a.7.7 0 0 0 0-1.2l-7-4.7C4.7 4.3 4 4.7 4 5.3Z"/></symbol>
+  <!-- Follow: the page rides down with the voice (N12); switching it on snaps to the voice (R1). -->
+  <symbol id="i-follow" viewBox="0 0 20 20"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M10 3v9.5M6.2 8.8 10 12.6l3.8-3.8M4.5 16.5h11"/></symbol>
+  <symbol id="i-recover" viewBox="0 0 20 20"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M15.8 10a5.8 5.8 0 1 1-1.7-4.1M15.8 3.6v3.6h-3.6"/></symbol>
+  <symbol id="i-sidebar" viewBox="0 0 20 20"><rect x="2.8" y="4" width="14.4" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7.6 4.6v10.8" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <!-- The sidebar glyph mirrored: the panel this one names is the one on the right. -->
+  <symbol id="i-notes" viewBox="0 0 20 20"><rect x="2.8" y="4" width="14.4" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12.4 4.6v10.8" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="i-stats" viewBox="0 0 20 20"><rect x="3.5" y="10" width="3" height="6.5" rx="1"/><rect x="8.5" y="6" width="3" height="10.5" rx="1"/><rect x="13.5" y="3" width="3" height="13.5" rx="1"/></symbol>
+</svg>
+
+<aside id="sidebar" aria-label="Reader sidebar">
+  <header id="sidebar-top">
+    <div id="app-title">
+      <span id="app-name">Kokoro Reader</span>
+      <button class="icon-btn" id="statsBtn" type="button" aria-haspopup="dialog"
+              title="Your reading stats (Wrapped)" aria-label="Reading stats"><svg class="icon"><use href="#i-stats"/></svg></button>
+      <button class="icon-btn" id="collapseBtn" type="button" aria-controls="sidebar" aria-expanded="true"
+              title="Hide sidebar (B)" aria-label="Hide sidebar">
+        <svg class="icon"><use href="#i-sidebar"/></svg>
+      </button>
+    </div>
+
+    <div id="drop-zone" role="button" tabindex="0" aria-label="Open a PDF">
+      Drop a PDF here or click to browse
+    </div>
+    <input type="file" id="file-input" accept="application/pdf" hidden>
+
+    <!-- R4: the audio-ready line (bufferbar.js, N1) is this field's own progress, drawn along its
+         bottom edge. A sibling, not a child: setStatus rewrites the live region's contents. -->
+    <div id="status-field">
+      <div id="status-bar" role="status" aria-live="polite">No document loaded</div>
+      <div id="bufferbar" role="progressbar" aria-label="Audio ready ahead" aria-valuemin="0"></div>
+    </div>
+  </header>
+
+  <nav id="tabs" role="tablist" aria-label="Sidebar sections">
+    <button class="tab active" data-tab="read"  role="tab" aria-selected="true"  aria-controls="tab-read">Read</button>
+    <button class="tab"        data-tab="subs"  role="tab" aria-selected="false" aria-controls="tab-subs">Subs</button>
+    <button class="tab"        data-tab="summary" role="tab" aria-selected="false" aria-controls="tab-summary">Summary</button>
+    <button class="tab"        data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">Settings</button>
+  </nav>
+
+  <section id="tab-read" class="tab-panel active" role="tabpanel">
+    <div class="stack">
+      <div class="field">
+        <span class="label">Voice</span>
+        <select id="voiceSelect" aria-label="Voice">
+          <option value="af_aoede" selected>af_aoede — Female · US · Calm</option>
+          <option value="af_alloy">af_alloy — Female · US</option>
+          <option value="af_heart">af_heart — Female · US · Warm</option>
+          <option value="af_bella">af_bella — Female · US · Expressive</option>
+          <option value="af_sarah">af_sarah — Female · US · Clear</option>
+          <option value="am_fenrir">am_fenrir — Male · US · Clean</option>
+          <option value="am_puck">am_puck — Male · US · Dynamic</option>
+          <option value="bf_alice">bf_alice — Female · UK · Professional</option>
+          <option value="bm_daniel">bm_daniel — Male · UK · Deep</option>
+          <option value="bm_george">bm_george — Male · UK · Formal</option>
+          <!-- R5: the Siri voice (engineswitch.js, apple_engine.py) in its own group; re-added after loadVoices. -->
+          <optgroup label="macOS"><option value="siri_nora">Siri · Nora (macOS)</option></optgroup>
+        </select>
+      </div>
+
+      <div class="field">
+        <span class="label">Speed</span>
+        <div class="speed-row">
+          <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.05" value="1.0"
+                 aria-label="Speaking speed">
+          <span id="speedVal">1.0×</span>
+        </div>
+      </div>
+
+      <!-- Transport and contents: hidden until a paper is open (ui.hideWelcome). -->
+      <div id="transport" hidden>
+        <button class="t-btn" id="prevBtn"  disabled title="Previous sentence (←)" aria-label="Previous"><svg class="icon"><use href="#i-prev"/></svg></button>
+        <button class="t-btn t-play" id="ppBtn" disabled title="Play / Pause (Space)" aria-label="Play or pause"><svg class="icon icon-play"><use href="#i-play"/></svg><svg class="icon icon-pause"><use href="#i-pause"/></svg></button>
+        <button class="t-btn" id="nextBtn"  disabled title="Next sentence (→)"     aria-label="Next"><svg class="icon"><use href="#i-next"/></svg></button>
+        <!-- A preference, not a playback control: never disabled, so it can be set before a paper opens.
+             R1: it absorbed Snap — switching it on (or pressing it while your scroll holds it) brings the page to the voice. -->
+        <button class="t-btn" id="followBtn" type="button" role="switch" aria-checked="true"
+                title="Follow the voice: scroll to it and along as it reads (F or S)" aria-label="Follow reading"><svg class="icon"><use href="#i-follow"/></svg></button>
+        <button class="t-btn" id="recoverBtn" disabled title="Force-restart the audio pipeline (R)" aria-label="Recover audio"><svg class="icon"><use href="#i-recover"/></svg></button>
+      </div>
+    </div>
+
+    <!-- R2: the contents tree (tocpanel.js, N7) where the reading queue was; a click selects,
+         a double-click or Enter moves the voice there. Hidden with the transport. -->
+    <div id="toc-section" hidden>
+      <div id="toc-header"><span class="label">Contents</span></div>
+      <nav id="toc-panel" aria-label="Contents"></nav>
+    </div>
+  </section>
+
+  <!-- Filled by subspanel.js (T6). -->
+  <section id="tab-subs" class="tab-panel" role="tabpanel"></section>
+  <section id="tab-summary" class="tab-panel" role="tabpanel"></section>
+
+  <!-- R7: misc settings, out of the Read tab. -->
+  <section id="tab-settings" class="tab-panel" role="tabpanel">
+    <div class="stack">
+      <details id="read-options" open>
+        <summary class="label">Inclusions</summary>
+        <div class="opts">
+          <label><input type="checkbox" data-opt="read_headings"   checked> Section headings</label>
+          <label><input type="checkbox" data-opt="read_equations"  checked> Equations <span class="hint">spoken as English</span></label>
+          <label><input type="checkbox" data-opt="read_captions"   checked> Figure &amp; table captions</label>
+          <label><input type="checkbox" data-opt="read_tables"> Table contents <span class="hint">usually noise</span></label>
+          <label><input type="checkbox" data-opt="read_footnotes"> Footnotes</label>
+          <label><input type="checkbox" data-opt="read_references"> Bibliography</label>
+          <label id="llm-row"><input type="checkbox" data-opt="use_llm"> LLM script polish
+            <span class="hint" id="llm-hint">checking…</span></label>
+        </div>
+        <button id="rebuildBtn" class="ghost-btn" disabled>Rebuild script</button>
+      </details>
+
+      <details id="scroll-options" open>
+        <summary class="label">Scrolling</summary>
+        <div class="opts">
+          <label><input type="checkbox" id="smoothScrollBox" checked> Smooth scrolling
+            <span class="hint">following, jumps</span></label>
+        </div>
+      </details>
+    </div>
+  </section>
+</aside>
+
+<!-- Shown while the sidebar is collapsed. Every button forwards to its sidebar twin. -->
+<nav id="rail" aria-label="Playback toolbar" inert>
+  <button class="rail-btn" id="expandBtn" type="button" data-action="expand" aria-controls="sidebar"
+          title="Show sidebar (B)" aria-label="Show sidebar"><svg class="icon"><use href="#i-sidebar"/></svg></button>
+  <span class="rail-sep" aria-hidden="true"></span>
+  <button class="rail-btn t-play" id="railPpBtn" type="button" hidden data-proxy="ppBtn" disabled
+          title="Play / Pause (Space)" aria-label="Play or pause"><svg class="icon icon-play"><use href="#i-play"/></svg><svg class="icon icon-pause"><use href="#i-pause"/></svg></button>
+  <button class="rail-btn" id="railPrevBtn" type="button" hidden data-proxy="prevBtn" disabled
+          title="Previous sentence (←)" aria-label="Previous"><svg class="icon"><use href="#i-prev"/></svg></button>
+  <button class="rail-btn" id="railNextBtn" type="button" hidden data-proxy="nextBtn" disabled
+          title="Next sentence (→)" aria-label="Next"><svg class="icon"><use href="#i-next"/></svg></button>
+  <button class="rail-btn rail-speed" id="railSpeedBtn" type="button" data-action="speed"
+          title="Speaking speed — click to step" aria-label="Speaking speed">1×</button>
+  <button class="rail-btn" id="railFollowBtn" type="button" hidden data-proxy="followBtn" role="switch" aria-checked="true"
+          title="Follow the voice: scroll to it and along as it reads (F or S)" aria-label="Follow reading"><svg class="icon"><use href="#i-follow"/></svg></button>
+</nav>
+
+<main id="content-area">
+  <!-- Where you are in the paper, and how big it is drawn. -->
+  <div id="view-status">
+    <div id="zoom-pill" hidden>
+      <button class="zoom-btn" id="zoomOutBtn" type="button" data-zoom="out"
+              title="Zoom out (⌘−)" aria-label="Zoom out">−</button>
+      <button class="zoom-level" id="zoomLevel" type="button" data-zoom="fit"
+              title="100% fits the page to the column — click to go back to it (⌘0)"
+              aria-label="Zoom level; click to fit the page width">100%</button>
+      <button class="zoom-btn" id="zoomInBtn" type="button" data-zoom="in"
+              title="Zoom in (⌘+)" aria-label="Zoom in">+</button>
+    </div>
+    <button id="page-pill" type="button" hidden title="Go to page" aria-controls="page-go"
+            aria-expanded="false">Page — / —</button>
+    <!-- Opened by the pill (N8): a printed number ("11", "xii") or "#23" for the PDF index. -->
+    <form id="page-go" hidden>
+      <input id="page-go-input" type="text" inputmode="text" autocomplete="off" spellcheck="false"
+             placeholder="Page" aria-label="Go to page: a printed number, or # and the PDF page">
+    </form>
+    <!-- N11 (etastatus.js): time left at the learnt speaking rate; not a live region. -->
+    <div id="eta-pill" hidden title="Estimated listening time left, at this voice and speed"></div>
+    <!-- The notes column's handle. It rides the column's edge instead of swapping for a
+         twin the way the sidebar does, so there is one place to look in either state. -->
+    <button class="status-btn" id="notesToggleBtn" type="button" aria-controls="notes-column"
+            aria-expanded="true" title="Hide notes (N)" aria-label="Hide notes">
+      <svg class="icon"><use href="#i-notes"/></svg>
+    </button>
+  </div>
+  <div id="welcome">
+    <h2>Kokoro Reader</h2>
+    <p>Drop a paper in the sidebar. It skips the running heads, page numbers, tables and
+       bibliography, speaks the equations as English, and highlights each sentence as it reads.</p>
+    <p class="tiny">Select any text to highlight it or attach a note.</p>
+  </div>
+  <div id="pdf-pages"></div>
+</main>
+
+<!-- Per-paper writing space, filled by the block editor (T7), under the Highlights list (notes.js, R3). -->
+<aside id="notes-column" aria-label="Notes">
+  <section id="notes-panel" aria-label="Highlights"></section>
+</aside>
+
+<div id="toast" role="alert" aria-live="assertive" hidden></div>
+
+<script type="module" src="/static/js/main.js"></script>
+<script type="module" src="/static/js/statsdialog.js"></script>
+</body>
+</html>
