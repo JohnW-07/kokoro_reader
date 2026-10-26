@@ -172,6 +172,44 @@ state.set({ speed: 2 });
 byId.get('railSpeedBtn').click();
 ok('   ... and wraps from the fastest to the slowest', state.get().speed === 0.75, `${state.get().speed}`);
 
+console.log('\n5b. V1 — the Pitch and Expressiveness sliders');
+let cleared = 0;
+const realClear = kokoro.tts.clear;
+kokoro.tts.clear = () => { cleared += 1; realClear(); };
+const pitch = byId.get('pitchSlider');
+pitch.value = '1.1';
+pitch.dispatch('input');
+ok('   dragging Pitch sets the state and its label, nothing saved or dropped yet',
+    state.get().voicePitch === 1.1 && byId.get('pitchVal').textContent === '+10%' && cleared === 0
+    && lastPrefs()?.[1].voicePitch !== 1.1, byId.get('pitchVal').textContent);
+pitch.dispatch('change');
+ok('   letting go saves it and drops the audio in the old shape', lastPrefs()?.[1].voicePitch === 1.1 && cleared === 1);
+const expr = byId.get('exprSlider');
+expr.value = '9';
+expr.dispatch('input');
+expr.dispatch('change');
+ok('   Expressiveness is clamped, labelled, saved and drops audio',
+    state.get().voiceExpr === 1.5 && byId.get('exprVal').textContent === '150%'
+    && lastPrefs()?.[1].voiceExpr === 1.5 && cleared === 2);
+const bass = byId.get('bassSlider');
+const applied = [];
+const realApply = kokoro.voicefx.apply;
+kokoro.voicefx.apply = (fx) => { applied.push(fx); };
+bass.value = '4';
+bass.dispatch('input');
+ok('   dragging Bass applies it live, labelled, nothing saved yet',
+    applied.at(-1)?.bass === 4 && byId.get('bassVal').textContent === '+4 dB' && lastPrefs()?.[1].fxBass !== 4,
+    JSON.stringify(applied.at(-1)));
+bass.dispatch('change');
+ok('   letting go saves it, and keeps the cached audio (an effect, not a render)', lastPrefs()?.[1].fxBass === 4 && cleared === 2);
+const even = byId.get('evenSlider');
+even.value = '0.5';
+even.dispatch('input');
+ok('   Even out applies live too', applied.at(-1)?.even === 0.5 && byId.get('evenVal').textContent === '50%');
+kokoro.voicefx.apply = realApply;
+kokoro.tts.clear = realClear;
+state.set({ voicePitch: 1, voiceExpr: 1, fxBass: 0, fxTreble: 0, fxEven: 0 });
+
 console.log('\n6. T3 — the play state shows on both play buttons');
 const ui = await import('../../static/js/ui.js');
 const playButtons = ['ppBtn', 'railPpBtn'].map((id) => byId.get(id));

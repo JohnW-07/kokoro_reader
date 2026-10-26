@@ -598,7 +598,7 @@ const mkPlayer = (extra = {}) => {
     tts, getSentences: () => mkSentences(4), getVoice: () => 'af', getSpeed: () => 1,
     onStatus: (s) => statuses.push(s), onListen: (ev) => heard.push(ev), ...extra,
   });
-  return { player, statuses, heard };
+  return { player, statuses, heard, tts };
 };
 
 console.log('\nP2a HEADLINE: a pause from outside the app (F8) reports paused, and resumes in place');
@@ -732,6 +732,29 @@ console.log('\nP2g an explicit jump overrides a pending pause');
   await advance(1000);
   eq(player.state().index, 1, 'jumped');
   eq(player.state().isPlaying, true, 'the jump plays');
+  player.destroy();
+}
+
+console.log('\nP2h F2: Play after a paused speed/voice change fetches the sentence anew, not the revoked blob');
+{
+  reset('ok', 100);
+  const { player, statuses, tts } = mkPlayer();
+  player.play(0);
+  await advance(1000);
+  const a = live();
+  player.pause();
+  a.dispatch('pause');
+  tts.clear();                                            // settings.js clearAudio: revokes every blob, the paused one too
+  const calls = net.calls.length;
+  const plays = a.playCalls;
+  player.toggle();
+  ok(player.state().isLoading, 'it loads the sentence again');
+  eq(a.playCalls, plays, 'the element holding the revoked blob is not played');
+  await advance(1000);
+  ok(net.calls.length > calls, 'a new synthesis for the sentence');
+  eq(player.state().index, 0, 'the same sentence, from its start');
+  eq(player.state().isPlaying, true, 'and it plays');
+  eq(lastState(statuses), 'playing', 'status says playing');
   player.destroy();
 }
 

@@ -25,6 +25,7 @@ from kokoro_reader.tts_engine import (
     CACHE_SUFFIX, DEFAULT_PAUSE, PAUSE_TAIL_MS, TTSBusy, TTSError, TTSVoiceUnavailable, cache_key,
     get_engine,
 )
+from kokoro_reader.voiceshape import NEUTRAL, VoiceShape
 
 log = logging.getLogger(__name__)
 
@@ -92,6 +93,8 @@ def get_tts(
     voice: str = Query(config.DEFAULT_VOICE),
     speed: float = Query(1.0),
     pause: str = Query(DEFAULT_PAUSE, description="Beat after the sentence (C1/N5)"),
+    pitch: float = Query(1.0, description="Kokoro F0 scale (V1)"),
+    expr: float = Query(1.0, description="Kokoro F0 range about its mean (V1)"),
 ) -> Response:
     """Synthesise `text` and return WAV bytes. Sync on purpose — see D3."""
     clean = _validated_text(text)
@@ -100,9 +103,12 @@ def get_tts(
     pause = _validated_pause(pause)
     hit = False
     try:
-        engine = get_apple_engine() if is_siri_voice(voice) else get_engine()  # siri_*: dev switch
-        hit = _is_cached(engine, clean, voice, speed)
-        wav = engine.synthesize(clean, voice=voice, speed=speed, pause=pause)
+        siri = is_siri_voice(voice)
+        engine = get_apple_engine() if siri else get_engine()  # siri_*: dev switch
+        # Siri has no F0 to shape (pitchMultiplier measured: no effect, docs/18).
+        shape = NEUTRAL if siri else VoiceShape.clamped(pitch, expr)
+        hit = _is_cached(engine, clean, voice, speed, shape)
+        wav = engine.synthesize(clean, voice=voice, speed=speed, pause=pause, shape=shape)
     except TTSBusy as exc:
         log.info("tts refused: %s", exc)
         raise HTTPException(
@@ -123,10 +129,12 @@ def get_tts(
     return Response(content=wav, media_type="audio/wav", headers=NO_STORE_HEADERS)
 
 
-def _is_cached(engine: object, text: str, voice: str, speed: float) -> bool:
+def _is_cached(
+    engine: object, text: str, voice: str, speed: float, shape: VoiceShape = NEUTRAL
+) -> bool:
     """Whether this request will be a disk-cache hit: one `stat`, for the stats page only."""
     try:
-        key = cache_key(engine.cache_id, voice, float(speed), text)
+        key = cache_key(engine.cache_id, voice, float(speed), text, shape)
         return (config.AUDIO_CACHE_DIR / f"{key}{CACHE_SUFFIX}").is_file()
     except Exception as exc:  # noqa: BLE001 - a stats probe must never fail a request
         log.debug("tts cache probe failed: %s", exc)

@@ -152,6 +152,13 @@ ok('   R2: the reading queue is gone', !/id="(sentence-feed|feed-section|feed-co
 ok('   R7: Inclusions (with Rebuild) and Scrolling sit in the Settings tab',
     ['read-options', 'rebuildBtn', 'scroll-options', 'smoothScrollBox'].every((id) => panelHtml('settings').includes(`id="${id}"`)));
 ok('   R7: ... and not in the Read tab', !/id="(read-options|scroll-options)"/.test(panelHtml('read')));
+const TUNE_IDS = ['voiceTune', 'pitchSlider', 'exprSlider', 'bassSlider', 'trebleSlider', 'evenSlider'];
+ok('   V1: "Personalise voice" and its five sliders sit in the Settings tab, under a fold-out heading',
+    TUNE_IDS.every((id) => panelHtml('settings').includes(`id="${id}"`))
+    && /<details id="voiceTune">\s*<summary class="label">Personalise voice<\/summary>/.test(panelHtml('settings')));
+ok('   Follow is a locate crosshair, not the arrow-onto-a-line that reads as Download',
+    /<symbol id="i-follow"[^>]*><circle /.test(html) && !/<symbol id="i-follow"[^>]*>[^\n]*M10 3v9\.5/.test(html));
+ok('   V1: ... and not in the Read tab', !TUNE_IDS.some((id) => panelHtml('read').includes(`id="${id}"`)));
 ok('   R1: no Snap button, in the sidebar or on the rail', !/id="(snapBtn|railSnapBtn)"/.test(html) && !/data-proxy="snapBtn"/.test(html));
 ok('   R5: no Dev panel or Siri switch', !/id="(dev-options|siriSwitch)"/.test(html));
 ok('   R5: Siri Nora is a voice, in a macOS group at the end of the voice dropdown',

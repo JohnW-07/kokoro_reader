@@ -13,6 +13,11 @@
 .summary-result { margin-top: var(--space-3); }
 .summary-heading { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-footnote); }
 .summary-text { margin: 0; font-size: var(--fs-callout); line-height: var(--lh-loose); }
+/* docs/17: Oxford-style notes — a title, an italic context line, then the key points. */
+.summary-title { margin: 0 0 var(--space-1); font-size: var(--fs-headline); line-height: var(--lh-tight); }
+.summary-context { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--fs-callout); font-style: italic; line-height: var(--lh-body); }
+.summary-points { margin: 0; padding-left: var(--space-3); font-size: var(--fs-callout); line-height: var(--lh-list); }
+.summary-point + .summary-point { margin-top: var(--space-1); }
 .summary-sentence { border-radius: 3px; transition: background var(--speed); }
 .summary-sentence.current { background: var(--reading-bg); }
 .summary-note { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--fs-caption); font-style: italic; }

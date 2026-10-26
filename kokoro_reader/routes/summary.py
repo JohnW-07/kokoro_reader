@@ -1,4 +1,4 @@
-"""POST /api/summary: a spoken summary of the text the client sends (N9).
+"""POST /api/summary: notes on the text the client sends (N9, docs/17), and their spoken text.
 
 A sync `def`: the model call blocks for seconds, so it runs in the thread pool and the event
 loop stays free for /api/health and audio (R2). The server is stateless about pages; the
@@ -53,4 +53,6 @@ def post_summary(req: SummaryRequest) -> dict:
     except summary.SummaryFailed as exc:
         log.warning("summary: %s failed for %s p%d: %s", req.backend, req.doc_id[:8], req.page, exc)
         raise HTTPException(status_code=FAILED, detail=str(exc)) from exc
-    return {"summary": made.text, "backend": made.backend, "cached": made.cached}
+    notes = made.notes
+    return {"heading": notes.heading, "context": notes.context, "points": list(notes.points),
+            "summary": notes.spoken, "backend": made.backend, "cached": made.cached}

@@ -1,10 +1,11 @@
-// Real-browser check for N9 (the Summary tab). UNRUN as written (S2): no browser was started.
+// Real-browser check for N9 (the Summary tab) and docs/17 (viewed page, notes layout).
 //
 // On KOKORO_E2E_PDF, with /api/tts answered by a long silent WAV and /api/summary by a canned
 // reply (no model is loaded):
 //   1. the four sidebar tabs fit, none cut off, and Summary opens its panel.
-//   2. "Summarise this page" posts the cursor page's text and shows the summary, its source
-//      and the "may omit details" note.
+//   2. scrolled away from the cursor, "Summarise this page" posts the page on screen (docs/17
+//      S1) and shows the notes — title, context, points (S2) — their source and the
+//      "may omit details" note.
 //   3. with the main reader playing, Play on the summary pauses the main reader first.
 //   4. starting the main reader again pauses the summary.
 //   5. a 503 shows its reason in the panel.
@@ -19,7 +20,11 @@ import { STEP_TIMEOUT_MS, openPaper } from './lib/editor.mjs';
 const PDF = requireEnv('KOKORO_E2E_PDF', 'Point it at the PDF this check should drive.');
 const WAV_RATE = 8000;
 const SENTENCE_AUDIO_MS = 20000;   // no sentence ends by itself during a case
-const CANNED = 'The page reports 12 runs. Accuracy was 91.4 percent.';
+const CANNED = {
+  heading: 'Run results', context: 'Reports the evaluation runs.', points: ['12 runs', 'Accuracy: 91.4 percent'],
+  summary: 'Run results. Reports the evaluation runs. 12 runs. Accuracy: 91.4 percent.',
+};
+const VIEWED_PAGE = 3;   // the paper opens with the cursor on page 1
 const UNAVAILABLE = 'Apple Intelligence is turned off in System Settings';
 
 /** A mono 16-bit PCM WAV of silence (as media_keys.mjs). */
@@ -49,7 +54,7 @@ await finish(async () => {
   const errors = [];
   const { browser, page } = await launch(errors);
   const posts = [];
-  const reply = { status: 200, body: { summary: CANNED, backend: 'apple', cached: false } };
+  const reply = { status: 200, body: { ...CANNED, backend: 'apple', cached: false } };
   const wav = silentWav(SENTENCE_AUDIO_MS);
   await page.route('**/api/tts?**', (route) => route.fulfill({ status: 200, contentType: 'audio/wav', body: wav }));
   await page.route('**/api/summary', (route) => {
@@ -66,16 +71,22 @@ await finish(async () => {
     await page.click('.tab[data-tab="summary"]');
     must('the Summary panel opens', await page.isVisible('#tab-summary .summary-btn'));
 
-    console.log('\n2. summarise this page');
+    console.log('\n2. summarise this page: the one on screen');
     const cursorPage = await page.evaluate(() => {
       const s = window.kokoro.state.get();
       return s.sentences[s.index]?.page;
     });
+    await page.evaluate((n) => window.kokoro.pdfView.scrollToPage(n), VIEWED_PAGE);
+    must(`page ${VIEWED_PAGE} is on screen, away from the cursor (page ${cursorPage})`, VIEWED_PAGE !== cursorPage
+      && await page.waitForFunction((n) => window.kokoro.pdfView.currentPage() === n, VIEWED_PAGE,
+        { timeout: STEP_TIMEOUT_MS }).then(() => true, () => false));
     await page.click('#tab-summary .summary-btn');
     await page.waitForSelector('.summary-result:not([hidden])', { timeout: STEP_TIMEOUT_MS });
-    check('one POST, for the cursor page, asking Apple', posts.length === 1 && posts[0].page === cursorPage
+    check('one POST, for the page on screen, asking Apple', posts.length === 1 && posts[0].page === VIEWED_PAGE
       && posts[0].backend === 'apple' && posts[0].text.length > 0, JSON.stringify(posts.map((p) => ({ ...p, text: p.text.length }))));
-    check('the summary is shown', (await page.textContent('.summary-text')).trim() === CANNED);
+    check('the notes are shown: title, context, points', (await page.textContent('.summary-title')) === CANNED.heading
+      && (await page.textContent('.summary-context')) === CANNED.context
+      && JSON.stringify(await page.$$eval('.summary-points li', (els) => els.map((li) => li.textContent))) === JSON.stringify(CANNED.points));
     check('... with its source', /Apple on-device model/.test(await page.textContent('.summary-heading')));
     check('... and the "may omit details" note', /may omit details/i.test(await page.textContent('.summary-note')));
 

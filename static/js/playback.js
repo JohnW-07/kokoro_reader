@@ -57,6 +57,7 @@ export function createPlayer(options = {}) {
     onVoiceUnavailable = null,
     preloadAhead = PRELOAD_AHEAD,
     stallSeconds = 6,
+    onAudioElement = undefined,   // V1: told of each <audio> made (voicefx.js); see audionode.js
   } = options;
 
   let epoch = 0;
@@ -378,7 +379,9 @@ export function createPlayer(options = {}) {
       return;
     }
     if (isPlaying) return;
-    if (audio.src && !audio.ended && cursor() === index) {
+    // F2: a speed/voice change while paused clears the cache, revoking this element's blob;
+    // playing it would fail (WebKit) and recover. Fetch the sentence anew instead.
+    if (audio.src && !audio.ended && cursor() === index && tts.isCached(index, getVoice(), getSpeed())) {
       resumeElement();
       return;
     }
@@ -645,7 +648,7 @@ export function createPlayer(options = {}) {
     return { index, isPlaying, isLoading, isRunning: isRunning(), epoch, recoveries, skipped, lastError };
   }
 
-  node = createAudioNode(onMediaEvent);
+  node = createAudioNode(onMediaEvent, onAudioElement);
   audio = node.element;
   ticker = setInterval(tick, TICK_MS);
 

@@ -3,8 +3,9 @@
 //
 // It drives, on GR00TN1, with /api/tts answered by a short silent WAV so reading moves quickly:
 //   1. during playback the current sentence stays in view as reading crosses from page 2 to 3.
-//   2. a wheel over the document suspends following (Follow and its rail twin light up); the view
-//      then holds still while reading moves on, and pressing Follow resumes and scrolls back (R1).
+//   2. a wheel over the document suspends following (Follow and its rail twin light up, and the
+//      "Follow paused" pill shows); the view then holds still while reading moves on, and pressing
+//      Follow resumes and scrolls back (R1). Left alone, following picks up by itself (F1).
 //   3. a press on the scrollbar (the right 16px of #content-area) suspends; a press on the text
 //      does not.
 //   4. a wheel over the #view-status strip does not suspend.
@@ -32,7 +33,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { OVERLAY_SCROLLBAR_PX as SCROLLBAR_PX } from '../../static/js/follow.js';
+import { OVERLAY_SCROLLBAR_PX as SCROLLBAR_PX, AUTO_RESUME_MS } from '../../static/js/follow.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASE_URL = process.env.KOKORO_URL || 'http://127.0.0.1:8765/';
@@ -55,6 +56,7 @@ const LEAD_SENTENCES = 3;          // start this many sentences before the end o
 const TRAIL_SENTENCES = 2;         // …and read this far into page 3
 const FROM_PAGE = 2;
 const HOLD_SENTENCES = 2;          // sentences read while the view must hold still
+const WHEEL_HOLD_SENTENCES = 1;    // the wheel's hold is checked well inside AUTO_RESUME_MS
 const WHEEL_PX = 1500;             // well over a view: the sentence leaves the screen
 const STATUS_WHEEL_PX = 200;
 const EDGE_PX = 4;
@@ -258,15 +260,31 @@ async function wheelCase(page) {
   check('Follow and its rail twin light up', await isSuspended(page), JSON.stringify(await suspended(page)));
   const held = await reading(page);
   check('the wheel took the sentence off screen', !held.inView, JSON.stringify(held));
-  await sentencesOn(page, HOLD_SENTENCES);
+  check('the "Follow paused" pill shows', await pillShown(page));
+  await sentencesOn(page, WHEEL_HOLD_SENTENCES);
   await page.waitForTimeout(SETTLE_MS);
   const after = await reading(page);
-  check(`the view holds still over the next ${HOLD_SENTENCES} sentences`, after.scrollTop === held.scrollTop && !after.inView,
+  check(`the view holds still over the next ${WHEEL_HOLD_SENTENCES} sentence`, after.scrollTop === held.scrollTop && !after.inView,
     JSON.stringify({ held: held.scrollTop, after: after.scrollTop, inView: after.inView }));
   await snap(page);
   check('pressing Follow turns following back on', await isFollowing(page), JSON.stringify(await suspended(page)));
   check('… and scrolls back to the sentence', (await reading(page)).inView, JSON.stringify(await reading(page)));
+  check('… and the pill goes', !(await pillShown(page)));
+
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.wheel(0, WHEEL_PX);
+  await page.waitForTimeout(SETTLE_MS);
+  must('a second wheel suspends again', await isSuspended(page), JSON.stringify(await suspended(page)));
+  await page.waitForTimeout(AUTO_RESUME_MS + SCROLL_SETTLE_MS);
+  check(`left alone for ${AUTO_RESUME_MS} ms, following picks up by itself`, await isFollowing(page), JSON.stringify(await suspended(page)));
+  check('… brings the sentence back', (await reading(page)).inView, JSON.stringify(await reading(page)));
+  check('… and the pill goes', !(await pillShown(page)));
 }
+
+const pillShown = (page) => page.evaluate(() => {
+  const pill = document.getElementById('follow-pill');
+  return Boolean(pill && !pill.hidden && pill.getBoundingClientRect().width > 0);
+});
 
 /** 3. A press on the scrollbar suspends; a press on the text does not. */
 async function scrollbarCase(page) {

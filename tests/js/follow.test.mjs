@@ -2,7 +2,7 @@
 // reader's own scroll suspends that, Snap or a play jump resumes it, and a paper opens at
 // its saved place. Plain fakes: a scroller box, a highlight rect and a pdfView that
 // records the scrolls it is asked for. Run: node follow.test.mjs
-import { createFollow, followBehavior, SMOOTH_BEHAVIOR, INSTANT_BEHAVIOR, RESTORE_BEHAVIOR } from '../../static/js/follow.js';
+import { createFollow, followBehavior, SMOOTH_BEHAVIOR, INSTANT_BEHAVIOR, RESTORE_BEHAVIOR, AUTO_RESUME_MS } from '../../static/js/follow.js';
 
 let pass = 0, fail = 0;
 const ok = (n, c, x = '') => { c ? (pass++, console.log(`  PASS  ${n}`)) : (fail++, console.log(`  FAIL  ${n} ${x}`)); };
@@ -51,13 +51,22 @@ function setup({ top = 100, height = LINE, margin = true } = {}) {
     renderPage: (n) => { renders.push(n); return new Promise((r) => { finishRender = () => r(true); }); },
     layoutGeneration: () => env.layouts,
   };
-  const env = { margin, layouts: 0, enabled: true, smooth: true };
+  const env = { margin, layouts: 0, enabled: true, smooth: true, playing: true };
+  // A fake clock: `timers` holds the one pending callback per handle; `run()` fires them all.
+  const timers = new Map();
+  let nextHandle = 0;
+  const timer = {
+    set: (fn, ms) => { timers.set(++nextHandle, { fn, ms }); return nextHandle; },
+    clear: (h) => timers.delete(h),
+  };
+  const run = () => { const due = [...timers.values()]; timers.clear(); due.forEach((t) => t.fn()); };
   const follower = createFollow({
     scroller, pdfView, doc, notes, isMargin: () => env.margin, onChange: (active) => changes.push(active),
-    isEnabled: () => env.enabled, isSmooth: () => env.smooth,
+    isEnabled: () => env.enabled, isSmooth: () => env.smooth, isPlaying: () => env.playing, timer,
   });
   return {
     doc, scroller, page, readout, notes, editor, sidebarInput, box, scrolls, renders, changes, env, follower,
+    timers, run,
     finish: () => finishRender?.(),
     next: (nextTop = box.top) => { box.top = nextTop; current = { ...line }; },   // the next sentence starts
   };
@@ -327,6 +336,68 @@ console.log('\n6. the follow switch (N12): off, the view stays where the reader 
   t.finish();
   await tick();
   ok('   ... and a reader who scrolls first is still not yanked back', t.scrolls.length === 0, t.scrolls.join());
+}
+
+console.log('\n7. after the reader stops scrolling, following picks up again by itself (F1)');
+{
+  const t = setup({ top: 100 });
+  t.scroller.fire('wheel');
+  const [pending] = [...t.timers.values()];
+  ok('   a wheel arms one auto-resume', t.timers.size === 1 && pending.ms === AUTO_RESUME_MS, `${t.timers.size} ${pending?.ms}`);
+  t.next(900);                                     // reading moved off screen meanwhile
+  t.run();
+  ok('   once it fires, following is back on (Follow\'s cue clears)', t.follower.isActive() && t.changes.join() === 'false,true', t.changes.join());
+  ok('   ... and the sentence being read is brought back', t.scrolls.length === 1, String(t.scrolls.length));
+}
+{
+  const t = setup({ top: 100 });
+  t.scroller.fire('wheel');
+  const [first] = t.timers.keys();
+  t.scroller.fire('scroll');                       // momentum: the page is still moving
+  const [second] = t.timers.keys();
+  ok('   a scroll while held re-arms rather than stacking timers', t.timers.size === 1 && second !== first, `${t.timers.size} ${first} ${second}`);
+  t.scroller.fire('wheel');
+  ok('   ... and so does another wheel', t.timers.size === 1, String(t.timers.size));
+}
+for (const [name, gesture] of [
+  ['a touch drag', (t) => t.scroller.fire('touchmove')],
+  ['a press on the scrollbar', (t) => t.scroller.fire('pointerdown', { offsetX: 595, offsetY: 10 })],
+  ['a scroll key', (t) => t.doc.fire('keydown', { code: 'PageDown' }, t.doc.body)],
+]) {
+  const t = setup({ top: 100 });
+  gesture(t);
+  ok(`   ${name} also resumes by itself`, t.timers.size === 1 && (t.run(), t.follower.isActive()));
+}
+{
+  const t = setup({ top: 100 });
+  t.follower.suspend();                            // a jump to a highlight: the reader went to look
+  t.scroller.fire('scroll');                       // ...and the jump scrolls the paper
+  ok('   an explicit suspend (a jump to a note) does not resume by itself', t.timers.size === 0 && !t.follower.isActive());
+}
+{
+  const t = setup({ top: 100 });
+  t.scroller.fire('wheel');
+  t.follower.suspend();                            // scrolled, then jumped to a note within the wait
+  ok('   ... even when it lands while an auto-resume is pending', t.timers.size === 0, String(t.timers.size));
+}
+{
+  const t = setup({ top: 100 });
+  t.scroller.fire('scroll');
+  ok('   a scroll while following arms nothing', t.timers.size === 0);
+}
+{
+  const t = setup({ top: 100 });
+  t.env.playing = false;
+  t.scroller.fire('wheel');
+  t.next(900);
+  t.run();
+  ok('   paused: the hold lifts but the view stays where the reader put it', t.follower.isActive() && t.scrolls.length === 0, t.scrolls.join());
+}
+for (const [name, act] of [['Follow (snap)', (f) => f.snap()], ['Play (resume)', (f) => f.resume()]]) {
+  const t = setup({ top: 100 });
+  t.scroller.fire('wheel');
+  act(t.follower);
+  ok(`   ${name} cancels the pending auto-resume`, t.timers.size === 0, String(t.timers.size));
 }
 
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'}: ${pass} passed, ${fail} failed\n`);

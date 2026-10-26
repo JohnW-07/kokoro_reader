@@ -11,7 +11,8 @@
 //      the status field's bottom edge and below its text.
 //   2. Play on a cold model shows "Loading voice model…" (is-loading) until audio arrives; on a warm
 //      model it never does. Then the meter fills to 3 of 3.
-//   3. a speed change (cache cleared) empties it.
+//   3. a speed change (cache cleared) empties it; F2: Play then sweeps, "Preparing audio…", while the
+//      sentence being read synthesises on the warm model (screenshots of the sweep and the fill).
 //   4. picking Siri in the dropdown: it shows Siri; state.voice keeps the Kokoro voice; picking
 //      the Kokoro voice again restores it, the Siri option still offered.
 //   5. a reload with Siri saved on still shows it once /api/voices has rebuilt the list.
@@ -22,13 +23,16 @@
 // a resume position): the check refuses to touch an existing one and deletes the one it creates.
 // Exit 0 = pass, 1 = fail.
 
-import { api, check, docIdOf, finish, launch, must, requireEnv } from './lib/harness.mjs';
+import { join } from 'node:path';
+import { api, check, docIdOf, finish, launch, must, requireEnv, SHOT_DIR, ENGINE } from './lib/harness.mjs';
 import { LOAD_TIMEOUT_MS, SETTLE_MS, STEP_TIMEOUT_MS, openPaper } from './lib/editor.mjs';
 
 const PDF = requireEnv('KOKORO_E2E_PDF', 'Point it at the PDF this check should drive.');
 const LOOK_AHEAD = '3';               // playback.js PRELOAD_AHEAD
 const SIRI_VOICE = 'siri_nora';       // engineswitch.js
 const LOADING_TEXT = 'Loading voice model…';
+const FETCHING_TEXT = 'Preparing audio…';   // bufferbar.js (F2)
+const BAR_PX = 4;                            // sidebar.css --buffer-h (F2: was 2)
 const SPEED_STEP = '1.25';
 const EDGE_PX = 2;                    // the field's hairline border, plus sub-pixel rounding
 
@@ -72,6 +76,7 @@ async function checkMeter(page) {
     rect.left >= field.left && rect.right <= field.right && rect.bottom <= field.bottom && field.bottom - rect.bottom <= EDGE_PX,
     JSON.stringify({ rect, field }));
   check('... below the status text, not over it', text.bottom <= rect.top + EDGE_PX, JSON.stringify({ text, rect }));
+  check(`F2: it is ${BAR_PX}px thick`, before.height === BAR_PX, JSON.stringify(before.height));
   check('it starts empty, scaled to the look-ahead', before.now === '0' && before.max === LOOK_AHEAD, JSON.stringify(before));
 
   const { tts_ready: isWarm } = await api('api/health');
@@ -98,6 +103,29 @@ async function checkMeter(page) {
   }, SPEED_STEP);
   await page.waitForTimeout(SETTLE_MS);
   check('a speed change (cache cleared) empties it', (await meter(page)).now === '0', JSON.stringify(await meter(page)));
+
+  // Record every state the bar passes through: on a warm model a sweep lasts about one synthesis.
+  await page.evaluate(() => {
+    const bar = document.getElementById('bufferbar');
+    window.__bar = [];
+    const note = () => window.__bar.push({ t: Math.round(performance.now()), loading: bar.classList.contains('is-loading'),
+      label: bar.querySelector('.bufferbar-label').textContent, index: window.kokoro.state.get().index,
+      player: window.kokoro.player.state() });
+    new MutationObserver(note).observe(bar, { attributes: true, subtree: true, childList: true, characterData: true });
+  });
+  const startIndex = await page.evaluate(() => window.kokoro.state.get().index);
+  await page.click('#ppBtn');
+  await page.waitForFunction((i) => window.kokoro.state.get().index > i, startIndex, { timeout: LOAD_TIMEOUT_MS }).catch(() => {});
+  const refilled = await page.waitForFunction((max) => document.getElementById('bufferbar').getAttribute('aria-valuenow') === max,
+    LOOK_AHEAD, { timeout: LOAD_TIMEOUT_MS }).then(() => true, () => false);
+  const seen = await page.evaluate(() => window.__bar);
+  console.log(`bar states: ${JSON.stringify(seen.filter((x) => x.loading).slice(0, 4))} (${seen.length} total)`);
+  await page.locator('#status-field').screenshot({ path: join(SHOT_DIR, `f2-fill-${ENGINE}.png`) });
+  check('F2: warm model, the sentence being read synthesising: it sweeps, "Preparing audio…"',
+    seen.some((x) => x.loading && x.label === FETCHING_TEXT), JSON.stringify(seen.slice(0, 6)));
+  check('… then the meter fills again', refilled, JSON.stringify(await meter(page)));
+  await page.click('#ppBtn');
+  await page.waitForFunction(() => !window.kokoro.player.state().isPlaying, null, { timeout: STEP_TIMEOUT_MS });
 }
 
 async function checkDropdown(page) {

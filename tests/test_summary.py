@@ -27,7 +27,20 @@ PAGE_TEXT = (
     "reaches 84.2 percent accuracy, within 0.4 points of the much larger baseline. Training ran "
     "for 21 days on 256 accelerators. Removing the curriculum stage costs 5.7 points on average."
 )
-GOOD = "The model was tested on 12 benchmarks. It scored 84.2 percent on GSM8K. Training took 21 days."
+GOOD = (
+    "Benchmark results\n"
+    "Evaluates the model on 12 benchmarks against a larger baseline.\n"
+    "- GSM8K: 84.2 percent, within 0.4 points of baseline\n"
+    "- Training: 21 days on 256 accelerators"
+)
+#: What the route answers for GOOD: the notes, and their flat text for reading aloud.
+GOOD_NOTES = {
+    "heading": "Benchmark results",
+    "context": "Evaluates the model on 12 benchmarks against a larger baseline.",
+    "points": ["GSM8K: 84.2 percent, within 0.4 points of baseline", "Training: 21 days on 256 accelerators"],
+    "summary": "Benchmark results. Evaluates the model on 12 benchmarks against a larger baseline. "
+               "GSM8K: 84.2 percent, within 0.4 points of baseline. Training: 21 days on 256 accelerators.",
+}
 
 
 class FakeBackend:
@@ -100,18 +113,18 @@ def test_a_summary_is_made_once_then_served_from_the_cache(
     first = client.post("/api/summary", json=body()).json()
     second = client.post("/api/summary", json=body(page=9)).json()   # same text elsewhere: same summary
 
-    assert first == {"summary": GOOD, "backend": "apple", "cached": False}
-    assert second == {"summary": GOOD, "backend": "apple", "cached": True}
+    assert first == {**GOOD_NOTES, "backend": "apple", "cached": False}
+    assert second == {**GOOD_NOTES, "backend": "apple", "cached": True}
     assert len(apple.calls) == 1
     assert len(list((tmp_path / "cache" / summary.CACHE_SUBDIR).glob("*.json"))) == 1
     assert isolated == [(120, 30, False), (120, 30, True)]   # a hit counts as tokens saved
 
 
-def test_the_prompt_asks_for_spoken_prose_that_keeps_numbers_and_names(apple: FakeBackend, client: TestClient) -> None:
+def test_the_prompt_asks_for_oxford_notes_that_keep_numbers_and_names(apple: FakeBackend, client: TestClient) -> None:
     client.post("/api/summary", json=body())
     instructions, text = apple.calls[0]
     assert text == PAGE_TEXT
-    for phrase in ("number", "name", "markdown", "3 to 6"):
+    for phrase in ("heading", "context", "bullet", "3 to 7", "number", "name", "Never add facts"):
         assert phrase in instructions
 
 
@@ -157,10 +170,56 @@ def test_an_unusable_reply_is_a_502_and_is_not_cached(
 
 
 def test_markdown_and_think_blocks_are_stripped_from_a_reply(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    raw = "<think>hmm</think>## Summary\n- The model scored **84.2 percent**.\n- Training took 21 days."
+    raw = "<think>hmm</think>## **Results**\nScores on the test set.\n- The model scored **84.2 percent**.\n- Training took `21` days."
     monkeypatch.setattr(summary, "_ask_apple", FakeBackend(reply=raw))
-    got = client.post("/api/summary", json=body()).json()["summary"]
-    assert got == "Summary The model scored 84.2 percent. Training took 21 days."
+    got = client.post("/api/summary", json=body()).json()
+    assert (got["heading"], got["context"]) == ("Results", "Scores on the test set.")
+    assert got["points"] == ["The model scored 84.2 percent.", "Training took 21 days."]
+
+
+@pytest.mark.parametrize("raw, heading, context, points", [
+    # The Apple model's habits, measured 2026-10-13 (docs/17): bold heading, doubled markers.
+    ("**Topic**  \nWhy it matters.\n- - First idea  \n- - Second idea", "Topic", "Why it matters.", ["First idea", "Second idea"]),
+    ("Topic:\nWhy.\n1. One\n2) Two\n* Three\n• Four", "Topic", "Why.", ["One", "Two", "Three", "Four"]),
+    ("Heading: Topic\nContext: Why it matters.\n- One", "Topic", "Why it matters.", ["One"]),
+    # A bullet the model wrapped onto a second line is one idea, not a stray line.
+    ("Topic\nWhy.\n- One idea that\n  runs on\n- Two", "Topic", "Why.", ["One idea that runs on", "Two"]),
+    # A second block (sub-heading, context) after the bullets stays apart: never glued onto a point.
+    ("Topic\nWhy.\n- One\nSecond section\nIt covers more.\n- Two", "Topic", "Why.",
+     ["One", "Second section", "It covers more.", "Two"]),
+    # A minus sign is content, not a marker.
+    ("Topic\nWhy.\n- -5.7 points without the curriculum", "Topic", "Why.", ["-5.7 points without the curriculum"]),
+    # Bullets alone: no heading or context to show.
+    ("- One\n- Two", "", "", ["One", "Two"]),
+    # Prose (the model ignored the layout): its first sentence is the context, the rest the points.
+    ("It was tested on 12 benchmarks. It scored 84.2 percent. Training took 21 days.", "",
+     "It was tested on 12 benchmarks.", ["It scored 84.2 percent.", "Training took 21 days."]),
+])
+def test_a_reply_is_read_as_heading_context_and_points(raw, heading, context, points) -> None:
+    notes = summary.parse_notes(raw, PAGE_TEXT)
+    assert (notes.heading, notes.context, list(notes.points)) == (heading, context, points)
+
+
+def test_a_point_cut_off_by_the_token_cap_is_dropped(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    cut = f"{GOOD}\n- Ablation: removing the curric"
+    monkeypatch.setattr(summary, "_ask_apple", FakeBackend(reply=cut, tokens=(120, summary.MAX_SUMMARY_TOKENS)))
+    assert client.post("/api/summary", json=body()).json()["points"] == GOOD_NOTES["points"]
+
+
+def test_a_reply_under_the_token_cap_keeps_every_point(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(summary, "_ask_apple", FakeBackend(tokens=(120, summary.MAX_SUMMARY_TOKENS - 1)))
+    assert client.post("/api/summary", json=body()).json()["points"] == GOOD_NOTES["points"]
+
+
+def test_a_first_line_too_long_for_a_heading_is_the_context() -> None:
+    first = "This page sets out " + "a long account of the method " * 6
+    notes = summary.parse_notes(f"{first}\n- One", PAGE_TEXT + " " + first)
+    assert (notes.heading, notes.context) == ("", first.strip())
+
+
+def test_the_spoken_text_reads_heading_context_then_each_point_as_a_sentence() -> None:
+    notes = summary.parse_notes("Topic\nWhy it matters\n- One!\n- Two?\n- Three", PAGE_TEXT)
+    assert notes.spoken == "Topic. Why it matters. One! Two? Three."
 
 
 def test_a_reply_longer_than_the_page_is_rejected(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -228,7 +287,7 @@ def test_qwen_runs_on_the_llm_worker_with_its_own_validation(client: TestClient,
 
     got = client.post("/api/summary", json=body(backend="qwen")).json()
 
-    assert got == {"summary": short, "backend": "qwen", "cached": False}
+    assert got == {"heading": "", "context": short, "points": [], "summary": short, "backend": "qwen", "cached": False}
     assert summary.INSTRUCTIONS in prompts[0] and PAGE_TEXT in prompts[0]
     assert isolated[0][1] == len(short.split()) and isolated[0][0] > len(PAGE_TEXT.split())
 
@@ -258,5 +317,6 @@ def test_live_apple_summary() -> None:
         pytest.skip(f"Apple model unavailable: {exc}")
     elapsed = time.monotonic() - started
     print(f"\nlive apple: {elapsed:.2f} s, {len(text)} chars, tokens {tokens_in}/{tokens_out}: {text}")
-    assert 0 < len(summary.clean_summary(text, PAGE_TEXT)) <= len(PAGE_TEXT) + summary.SUMMARY_SLACK_CHARS
+    notes = summary.parse_notes(text, PAGE_TEXT)
+    assert notes.points and len(notes.spoken) <= len(PAGE_TEXT) + summary.SUMMARY_SLACK_CHARS
     assert elapsed < summary.APPLE_TIMEOUT_S

@@ -5,6 +5,21 @@
 
 import { formatSpeed } from './layout.js';
 import { initEngineSwitch, reflectEngine } from './engineswitch.js';
+import { clampPitch, clampExpr, formatPitch, formatExpr } from './voiceshape.js';
+import { clampDb, clampEven, formatDb, formatEven } from './voicefx.js';
+
+/**
+ * V1: the "Personalise voice" sliders — state field, clamp, label. Pitch and Expressiveness are
+ * rendered by Kokoro (a change drops cached audio); `isLive` ones are effects applied to the
+ * audio as it plays (voicefx.js), so they change what is heard while dragging.
+ */
+const TUNE_SLIDERS = [
+  { id: 'pitchSlider', label: 'pitchVal', field: 'voicePitch', clamp: clampPitch, format: formatPitch },
+  { id: 'exprSlider', label: 'exprVal', field: 'voiceExpr', clamp: clampExpr, format: formatExpr },
+  { id: 'bassSlider', label: 'bassVal', field: 'fxBass', clamp: clampDb, format: formatDb, isLive: true },
+  { id: 'trebleSlider', label: 'trebleVal', field: 'fxTreble', clamp: clampDb, format: formatDb, isLive: true },
+  { id: 'evenSlider', label: 'evenVal', field: 'fxEven', clamp: clampEven, format: formatEven, isLive: true },
+];
 
 const ACCENTS = { a: 'US', b: 'UK', e: 'Spanish', f: 'French', h: 'Hindi', i: 'Italian', j: 'Japanese', p: 'Portuguese', z: 'Chinese' };
 const GENDERS = { f: 'Female', m: 'Male' };
@@ -15,14 +30,21 @@ function describeVoice(id) {
   return [gender, accent].filter(Boolean).join(' · ') || 'voice';
 }
 
-/** @param {{ api: object, state: object, ui: object, clearAudio: () => void }} deps */
-export function createSettings({ api, state, ui, clearAudio }) {
+/** @param {{ api: object, state: object, ui: object, clearAudio: () => void, applyFx?: () => void }} deps */
+export function createSettings({ api, state, ui, clearAudio, applyFx = () => {} }) {
   /** Put the saved preferences into the controls and save read-option edits. */
   function applyPrefs() {
     const s = state.get();
     reflectEngine(ui.el('voiceSelect'), s);
     ui.el('speedSlider').value = String(s.speed);
     ui.setSpeedLabel(formatSpeed(s.speed));
+    for (const t of TUNE_SLIDERS) {
+      const slider = ui.el(t.id);
+      if (slider) slider.value = String(s[t.field]);
+      const label = ui.el(t.label);
+      if (label) label.textContent = t.format(s[t.field]);
+    }
+    applyFx();
     ui.bindOptions(s.options, (patch) => {
       state.set({ options: { ...state.get().options, ...patch } });
       state.savePrefs();
@@ -43,6 +65,25 @@ export function createSettings({ api, state, ui, clearAudio }) {
     slider.addEventListener('change', () => {
       state.savePrefs();
       clearAudio();
+    });
+    TUNE_SLIDERS.forEach(bindTune);
+  }
+
+  /** Like speed: the label (and a live effect) follows the drag; letting go saves, and drops
+   *  audio rendered in the old shape. */
+  function bindTune({ id, label, field, clamp, format, isLive = false }) {
+    const slider = ui.el(id);
+    if (!slider) return;
+    slider.addEventListener('input', (e) => {
+      const value = clamp(e.target.value);
+      state.set({ [field]: value });
+      const node = ui.el(label);
+      if (node) node.textContent = format(value);
+      if (isLive) applyFx();
+    });
+    slider.addEventListener('change', () => {
+      state.savePrefs();
+      if (!isLive) clearAudio();
     });
   }
 

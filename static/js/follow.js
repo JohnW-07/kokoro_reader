@@ -3,9 +3,11 @@
  *
  * The view scrolls only once the highlight has left it, and only while following is on.
  * The reader's own scroll (wheel, touch drag, a press on the scrollbar, a scroll key)
- * suspends following; Follow (or F/S: R1), Play or a jump resumes it. Detection reads input events,
- * never `scroll` events, so the scrolls this module, zoom, fit-width and `snap` cause
- * are never mistaken for the reader's.
+ * suspends following; Follow (or F/S: R1), Play or a jump resumes it, and so does AUTO_RESUME_MS
+ * of the paper holding still (F1: a trackpad reader scrolls often, and a hold that never lifted
+ * read as "follow never works"). Detection reads input events, never `scroll` events, so the
+ * scrolls this module, zoom, fit-width and `snap` cause are never mistaken for the reader's;
+ * `scroll` events only postpone a pending auto-resume while the page is still moving (momentum).
  *
  * The follow switch (N12, `isEnabled`) turns following off altogether: the view then moves
  * only for `snap`, and a wheel suspends nothing, so Follow is not lit.
@@ -31,6 +33,8 @@ const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home
 const IGNORE_WHEEL_SELECTOR = '#view-status';
 /** Overlay scrollbars (macOS) take no layout width, so a press this close to the edge counts. */
 export const OVERLAY_SCROLLBAR_PX = 16;
+/** How long the paper must hold still after the reader's own scroll before following picks up again. */
+export const AUTO_RESUME_MS = 5000;
 
 /** Whether a highlight box is visible enough: whole, or (taller than the view) at least partly. */
 function inView(box, view) {
@@ -55,10 +59,14 @@ function onScrollbar(e, el) {
  *   switched-on follow off: Follow's cue (followswitch.js)
  * @param {() => boolean} [deps.isEnabled] the follow switch
  * @param {() => boolean} [deps.isSmooth] the smooth-scrolling pref, read at each scroll
+ * @param {() => boolean} [deps.isPlaying] whether the voice is reading: a paused auto-resume
+ *   lifts the hold but leaves the view where the reader put it
+ * @param {{set: Function, clear: Function}} [deps.timer] setTimeout/clearTimeout, injectable
  */
 export function createFollow({
   scroller, pdfView, notes = null, isMargin = () => false, onChange = () => {}, doc = document,
-  isEnabled = () => true, isSmooth = () => true,
+  isEnabled = () => true, isSmooth = () => true, isPlaying = () => true,
+  timer = { set: (fn, ms) => setTimeout(fn, ms), clear: (h) => clearTimeout(h) },
 }) {
   let active = true;    // not suspended by the reader's own scroll
   let reported = true;  // what onChange last said: following, or switched off (nothing held)
@@ -67,6 +75,7 @@ export function createFollow({
   // sentence while its spans repaint, but moves it: in a new layout it is not shown any more.
   // Not the scale: a zoom and back, or a follow mid-relayout, ends on the scale it began at.
   let shownLayout = null;
+  let resumeTimer = null;  // pending auto-resume after the reader's own scroll (F1)
 
   function report() {
     const next = active || !isEnabled();
@@ -75,11 +84,27 @@ export function createFollow({
     onChange(next);
   }
   function setActive(next) {
+    if (next) cancelAutoResume();
     active = next;
     report();
   }
+  function cancelAutoResume() {
+    if (resumeTimer !== null) timer.clear(resumeTimer);
+    resumeTimer = null;
+  }
+  function armAutoResume() {
+    cancelAutoResume();
+    resumeTimer = timer.set(autoResume, AUTO_RESUME_MS);
+  }
+  function autoResume() {
+    resumeTimer = null;
+    setActive(true);
+    if (isPlaying()) follow();
+  }
   const scroll = () => pdfView.scrollToHighlight(followBehavior(isSmooth()));
-  const suspend = () => { shownEl = null; setActive(false); };
+  const suspend = () => { cancelAutoResume(); shownEl = null; setActive(false); };
+  /** The reader's own scroll: hold still, and pick up again once the paper stops moving. */
+  const readerScrolled = () => { suspend(); armAutoResume(); };
   const isWriting = () => {
     const el = doc.activeElement;
     return Boolean(notes && isMargin() && notes.contains(el) && isTypingTarget(el));
@@ -130,13 +155,14 @@ export function createFollow({
   }
 
   scroller.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey && !e.target?.closest?.(IGNORE_WHEEL_SELECTOR)) suspend();
+    if (!e.ctrlKey && !e.target?.closest?.(IGNORE_WHEEL_SELECTOR)) readerScrolled();
   }, { passive: true });
-  scroller.addEventListener('touchmove', suspend, { passive: true });
-  scroller.addEventListener('pointerdown', (e) => { if (onScrollbar(e, scroller)) suspend(); });
+  scroller.addEventListener('touchmove', readerScrolled, { passive: true });
+  scroller.addEventListener('pointerdown', (e) => { if (onScrollbar(e, scroller)) readerScrolled(); });
+  scroller.addEventListener('scroll', () => { if (resumeTimer !== null) armAutoResume(); }, { passive: true });
   doc.addEventListener('keydown', (e) => {
     if (e.defaultPrevented || !SCROLL_KEYS.has(e.code)) return;
-    if (e.target === doc.body || scroller.contains(e.target)) suspend();
+    if (e.target === doc.body || scroller.contains(e.target)) readerScrolled();
   });
 
   return { follow, resume, snap, restore, suspend, toggled, isActive: () => active };

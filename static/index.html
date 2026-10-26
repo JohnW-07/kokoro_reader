@@ -24,8 +24,9 @@
   <symbol id="i-pause" viewBox="0 0 20 20"><rect x="5" y="4" width="3.6" height="12" rx="1"/><rect x="11.4" y="4" width="3.6" height="12" rx="1"/></symbol>
   <symbol id="i-prev" viewBox="0 0 20 20"><rect x="3.5" y="4.5" width="2.2" height="11" rx="1"/><path d="M16 5.3v9.4c0 .6-.7 1-1.2.6L7.8 10.6a.7.7 0 0 1 0-1.2l7-4.7c.5-.4 1.2 0 1.2.6Z"/></symbol>
   <symbol id="i-next" viewBox="0 0 20 20"><rect x="14.3" y="4.5" width="2.2" height="11" rx="1"/><path d="M4 5.3v9.4c0 .6.7 1 1.2.6l7-4.7a.7.7 0 0 0 0-1.2l-7-4.7C4.7 4.3 4 4.7 4 5.3Z"/></symbol>
-  <!-- Follow: the page rides down with the voice (N12); switching it on snaps to the voice (R1). -->
-  <symbol id="i-follow" viewBox="0 0 20 20"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M10 3v9.5M6.2 8.8 10 12.6l3.8-3.8M4.5 16.5h11"/></symbol>
+  <!-- Follow: the page rides down with the voice (N12); switching it on snaps to the voice (R1).
+       A locate crosshair: the old arrow-onto-a-line read as Download. -->
+  <symbol id="i-follow" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="10" r="1.8"/><path stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M10 2.5v2.5M10 15v2.5M2.5 10h2.5M15 10h2.5"/></symbol>
   <symbol id="i-recover" viewBox="0 0 20 20"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M15.8 10a5.8 5.8 0 1 1-1.7-4.1M15.8 3.6v3.6h-3.6"/></symbol>
   <symbol id="i-sidebar" viewBox="0 0 20 20"><rect x="2.8" y="4" width="14.4" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7.6 4.6v10.8" stroke="currentColor" stroke-width="1.5"/></symbol>
   <!-- The sidebar glyph mirrored: the panel this one names is the one on the right. -->
@@ -144,6 +145,41 @@
             <span class="hint">following, jumps</span></label>
         </div>
       </details>
+
+      <!-- V1: personalise the voice. Pitch/Expressiveness: Kokoro renders them (voiceshape.js); Siri ignores them. -->
+      <details id="voiceTune">
+        <summary class="label">Personalise voice</summary>
+        <div class="tune">
+          <span class="label">Pitch</span>
+          <div class="speed-row">
+            <input type="range" id="pitchSlider" min="0.85" max="1.15" step="0.05" value="1"
+                   aria-label="Voice pitch">
+            <span class="tune-val" id="pitchVal">0%</span>
+          </div>
+          <span class="label">Expressiveness</span>
+          <div class="speed-row">
+            <input type="range" id="exprSlider" min="0.5" max="1.5" step="0.1" value="1"
+                   aria-label="Voice expressiveness">
+            <span class="tune-val" id="exprVal">100%</span>
+          </div>
+          <!-- Applied as it plays (voicefx.js), Siri included. -->
+          <span class="label">Bass</span>
+          <div class="speed-row">
+            <input type="range" id="bassSlider" min="-12" max="12" step="1" value="0" aria-label="Bass">
+            <span class="tune-val" id="bassVal">0 dB</span>
+          </div>
+          <span class="label">Treble</span>
+          <div class="speed-row">
+            <input type="range" id="trebleSlider" min="-12" max="12" step="1" value="0" aria-label="Treble">
+            <span class="tune-val" id="trebleVal">0 dB</span>
+          </div>
+          <span class="label">Even out volume</span>
+          <div class="speed-row">
+            <input type="range" id="evenSlider" min="0" max="1" step="0.1" value="0" aria-label="Even out volume">
+            <span class="tune-val" id="evenVal">Off</span>
+          </div>
+        </div>
+      </details>
     </div>
   </section>
 </aside>
@@ -168,6 +204,11 @@
 <main id="content-area">
   <!-- Where you are in the paper, and how big it is drawn. -->
   <div id="view-status">
+    <!-- F1: your own scroll holds following; this says so, and a click (or F) brings the page back. -->
+    <button id="follow-pill" type="button" hidden
+            title="Following picks up again a few seconds after you stop scrolling. Click (or press F) to return now.">
+      Follow paused
+    </button>
     <div id="zoom-pill" hidden>
       <button class="zoom-btn" id="zoomOutBtn" type="button" data-zoom="out"
               title="Zoom out (⌘−)" aria-label="Zoom out">−</button>

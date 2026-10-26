@@ -31,13 +31,15 @@ export const NATIVE_PLAYBACK_RATE = 1;
  *
  * @param {(name: string, ev: object) => void} onEvent Media event sink. Only the
  *        live element's events are forwarded.
+ * @param {(el: HTMLAudioElement) => void} [onElement] Told of every element made, rebuilt
+ *        ones included (V1: voicefx.js routes them through its effects).
  * @returns {{element: HTMLAudioElement, preload: Function, activate: Function,
  *            drain: Function, cutDrain: Function, rebuild: Function, silence: Function,
  *            destroy: Function}}
  *          `activate()`, `rebuild()` and `destroy()` all return the live element
  *          (or null), so the caller can keep a plain reference to it.
  */
-export function createAudioNode(onEvent) {
+export function createAudioNode(onEvent, onElement = () => {}) {
   const bound = new Map();   // element → Map(event name → handler), rebound on rebuild
   let pair = [];             // [live, spare]; nothing but pair[0] is ever heard
   let armed = '';            // the url sitting on the spare, tracked rather than read
@@ -64,6 +66,7 @@ export function createAudioNode(onEvent) {
       node.addEventListener(name, handler);
     }
     bound.set(node, handlers);
+    onElement(node);
     return node;
   }
 

@@ -125,7 +125,9 @@ class RecordingEngine:
     def __init__(self, name: str) -> None:
         self.name, self.calls = name, []
 
-    def synthesize(self, text: str, voice: str, speed: float = 1.0, pause: str = "") -> bytes:
+    def synthesize(
+        self, text: str, voice: str, speed: float = 1.0, pause: str = "", shape: object = None
+    ) -> bytes:
         self.calls = [*self.calls, voice]
         return b"RIFF" + self.name.encode()
 

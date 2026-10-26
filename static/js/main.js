@@ -6,6 +6,8 @@ import * as api from './api.js';
 import * as state from './state.js';
 import * as ui from './ui.js';
 import { createTtsClient } from './ttsclient.js';
+import { shapeParams } from './voiceshape.js';
+import { createVoiceFx, fxOf } from './voicefx.js';
 import { createPlayer, PRELOAD_AHEAD } from './playback.js';
 import { createPdfView } from './pdfview.js';
 import { createHighlighter } from './highlights.js';
@@ -92,7 +94,10 @@ const noteSync = createNoteSync({
   },
 });
 const fileOpen = createFileOpen({ api, ui, onOpen: loadDocument });
-const settings = createSettings({ api, state, ui, clearAudio: () => tts.clear() });
+const voicefx = createVoiceFx();
+const settings = createSettings({ api, state, ui, clearAudio: () => tts.clear(), applyFx: () => voicefx.apply(fxOf(state.get())) });
+/** V1: the voice personalisation every player shares — Kokoro's shape and the effects chain. */
+const personal = Object.freeze({ shapeOf: () => shapeParams(state.get()), onAudioElement: (el) => voicefx.track(el) });
 const notesExport = createNotesExport({ api, state, ui });
 
 // ── Document loading ─────────────────────────────────────────────────────────
@@ -334,13 +339,18 @@ function persist() {
 
 // ── Player callbacks ─────────────────────────────────────────────────────────
 
+/** Whether the voice is reading (or fetching the sentence it is about to read). */
+function isReading() {
+  const { isPlaying, isLoading } = player?.state() ?? {};
+  return Boolean(isPlaying || isLoading);
+}
+
 function onIndex(idx, sentence) {
   state.set({ index: idx });
   if (sentence) {
     pdfView.highlightSpans(spansOf(sentence));   // N4: both pages of a sentence over a page turn
     ui.setPagePill(sentence.page, state.get().numPages);
-    const { isPlaying, isLoading } = player.state();   // setIndex moves the cursor, not the view
-    if (isPlaying || isLoading) follower.follow();
+    if (isReading()) follower.follow();   // setIndex moves the cursor, not the view
   }
   if (idx % POSITION_SAVE_EVERY === 0) scheduleSave();
 }
@@ -483,13 +493,19 @@ function init() {
     pdfView,
     notes: ui.el('notes-column'),
     isMargin: () => notesEditor.view() === VIEW_MARGIN,
-    onChange: (active) => ATTENTION_IDS.forEach((id) => ui.el(id)?.classList.toggle('attention', !active)),
+    onChange: (active) => {
+      ATTENTION_IDS.forEach((id) => ui.el(id)?.classList.toggle('attention', !active));
+      const pill = ui.el('follow-pill');
+      if (pill) pill.hidden = active || !isReading();   // F1: say so while the voice reads on unseen
+    },
     isEnabled: () => state.get().followEnabled,
     isSmooth: () => state.get().smoothScroll,
+    isPlaying: isReading,
   });
   const followSwitch = createFollowSwitch({ state, ui, follower });
+  ui.el('follow-pill')?.addEventListener('click', followSwitch.toggle);
 
-  tts = createTtsClient({ endpoint: '/api/tts' });
+  tts = createTtsClient({ endpoint: '/api/tts', shapeOf: personal.shapeOf });
   // R6: macOS removed the Siri voice — read on in Kokoro rather than skip every sentence.
   const onVoiceUnavailable = () => fallBackToKokoro({ state, ui, onSwitch: () => tts.clear() });
 
@@ -500,6 +516,7 @@ function init() {
     getVoice: () => ttsVoice(state.get()),
     getSpeed: () => state.get().speed,
     onVoiceUnavailable,
+    onAudioElement: personal.onAudioElement,
     onIndex,
     onStatus,
     onListen: (ev) => { listenLog().add(ev); eta.listen(ev); },
@@ -509,7 +526,8 @@ function init() {
     },
   });
 
-  createBufferBar({ root: ui.el('bufferbar'), tts, health: api.health, ahead: PRELOAD_AHEAD, state, voiceOf: ttsVoice });
+  createBufferBar({ root: ui.el('bufferbar'), tts, health: api.health, ahead: PRELOAD_AHEAD, state, voiceOf: ttsVoice,
+    ring: ui.el('railPpBtn') });
 
   transport = createTransport({
     player,
@@ -550,7 +568,7 @@ function init() {
   notesPanel = mountHighlightsPanel(ui.el(HIGHLIGHTS_ROOT_ID));
 
   createSubsPanel({ root: ui.el('tab-subs'), subs: s.subs, onChange: onSubsChange });
-  summaryPanel = createSummaryPanel({ root: ui.el('tab-summary'), state, post: api.summarize, mainPlayer: player, voiceOf: ttsVoice, onVoiceUnavailable });
+  summaryPanel = createSummaryPanel({ root: ui.el('tab-summary'), state, post: api.summarize, mainPlayer: player, voiceOf: ttsVoice, onVoiceUnavailable, viewedPage: () => pdfView.currentPage(), personal });
 
   fileOpen.blockStrayDrops();
   bindLayout();
@@ -565,6 +583,6 @@ function init() {
 }
 
 // Expose a handle for debugging in the pywebview console; harmless in production.
-window.kokoro = { state, get player() { return player; }, get tts() { return tts; }, get pdfView() { return pdfView; } };
+window.kokoro = { state, voicefx, get player() { return player; }, get tts() { return tts; }, get pdfView() { return pdfView; } };
 
 init();

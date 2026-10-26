@@ -68,7 +68,7 @@ const noop = () => {};
  * @param {number}  [options.retries=1]      Retries on network error / 5xx.
  * @returns {{get: Function, peek: Function, prefetch: Function, setWindow: Function,
  *            setCurrent: Function, drop: Function, clear: Function,
- *            abortAll: Function, stats: Function, readyAhead: Function, onChange: Function}}
+ *            abortAll: Function, stats: Function, readyAhead: Function, isCached: Function, isPending: Function, onChange: Function}}
  */
 export function createTtsClient(options = {}) {
   const {
@@ -78,6 +78,7 @@ export function createTtsClient(options = {}) {
     timeoutMs = 30000,
     retries = 1,
     maxQueued = DEFAULT_MAX_QUEUED,
+    shapeOf = () => ({}),   // V1: extra /api/tts params (voiceshape.shapeParams); part of the cache key
   } = options;
 
   const cache   = new Map();   // cacheKey → blobUrl, insertion order == LRU order
@@ -103,8 +104,9 @@ export function createTtsClient(options = {}) {
   }
 
   // ── Cache ──────────────────────────────────────────────
-  const cacheKeyOf = (key, voice, speed) =>
-    `${key}|${voice}|${Number(speed).toFixed(SPEED_PRECISION)}`;
+  const shapeKeyOf = (shape) => Object.entries(shape).map(([k, v]) => `|${k}${v}`).join('');
+  const cacheKeyOf = (key, voice, speed, shape = shapeOf()) =>
+    `${key}|${voice}|${Number(speed).toFixed(SPEED_PRECISION)}${shapeKeyOf(shape)}`;
 
   /** A cache entry is pinned while its sentence index is the current one. */
   const isPinned = (cacheKey) =>
@@ -179,6 +181,7 @@ export function createTtsClient(options = {}) {
       voice: String(task.voice),
       speed: String(task.speed),
       ...(task.pause ? { pause: task.pause } : {}),   // C1: the beat after it; absent → server default
+      ...task.shape,                                   // V1: pitch/expr; absent → neutral
     });
     return `${endpoint}?${q.toString()}`;
   }
@@ -282,9 +285,10 @@ export function createTtsClient(options = {}) {
   }
 
   function createTask(key, text, voice, speed, priority, pause) {
+    const shape = shapeOf();
     const task = {
-      key, text, voice, speed, priority, pause,
-      cacheKey: cacheKeyOf(key, voice, speed),
+      key, text, voice, speed, priority, pause, shape,
+      cacheKey: cacheKeyOf(key, voice, speed, shape),
       controller: null, timedOut: false, dropped: false, wake: null, isBusyWait: false,
     };
     task.promise = new Promise((resolve, reject) => {
@@ -479,6 +483,29 @@ export function createTtsClient(options = {}) {
   }
 
   /**
+   * Whether one sentence's audio is cached, so its object URL is still alive. Read-only.
+   * @param {number} key
+   * @param {string} voice
+   * @param {number} speed
+   * @returns {boolean}
+   */
+  function isCached(key, voice, speed) {
+    return cache.has(cacheKeyOf(key, voice, speed));
+  }
+
+  /**
+   * Whether one sentence's audio is queued or being synthesised (F2: the bar sweeps while
+   * the sentence at the cursor is). Read-only.
+   * @param {number} key
+   * @param {string} voice
+   * @param {number} speed
+   * @returns {boolean}
+   */
+  function isPending(key, voice, speed) {
+    return tasks.has(cacheKeyOf(key, voice, speed));
+  }
+
+  /**
    * Subscribe to buffer changes: work queued, stored or failed, cancelled, the
    * cache cleared or a sentence dropped, the cursor moved. Get the kind, not data.
    * @param {(kind: string) => void} fn
@@ -489,5 +516,5 @@ export function createTtsClient(options = {}) {
     return () => listeners.delete(fn);
   }
 
-  return { get, peek, prefetch, setWindow, setCurrent, drop, clear, abortAll, stats, readyAhead, onChange };
+  return { get, peek, prefetch, setWindow, setCurrent, drop, clear, abortAll, stats, readyAhead, isCached, isPending, onChange };
 }

@@ -94,6 +94,24 @@ export function summarySentences(summary, page) {
     .map((text) => Object.freeze({ text, raw: text, page, kind: 'summary', items: [] })));
 }
 
+/** docs/17 S1: "this page" is the page on screen; before one is shown, the cursor's page. */
+export function summaryPage(viewed, s) {
+  return Number.isInteger(viewed) && viewed > 0 ? viewed : cursorPage(s);
+}
+
+/**
+ * docs/17 S2: the notes as the player's sentences, in reading order: heading, context, each
+ * point; `role` says which. A reply without notes falls back to its flat summary.
+ */
+export function notesSentences(reply, page) {
+  if (!Array.isArray(reply?.points)) {
+    return Object.freeze(summarySentences(reply?.summary, page).map((s) => Object.freeze({ ...s, role: 'text' })));
+  }
+  const parts = [['heading', reply.heading], ['context', reply.context], ...reply.points.map((p) => ['point', p])];
+  return Object.freeze(parts.map(([role, t]) => [role, String(t || '').trim()]).filter(([, text]) => text)
+    .map(([role, text]) => Object.freeze({ text, raw: text, page, kind: 'summary', items: [], role })));
+}
+
 /** One line for the panel's status, from a failed request. */
 export function errorMessage(err) {
   if (err?.status === STATUS_UNAVAILABLE) return `Summaries are unavailable: ${err.message}.`;

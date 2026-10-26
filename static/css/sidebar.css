@@ -249,7 +249,7 @@ input[type="range"]::-webkit-slider-thumb {
   transition: transform var(--dur-press) ease-out;
 }
 input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); }
-#speedVal {
+#speedVal, .tune-val {
   font-size: var(--fs-footnote);
   color: var(--text-muted);
   min-width: 2.5rem;
@@ -289,7 +289,7 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); }
   position: absolute;
   inset-inline: var(--radius-sm);
   bottom: var(--hairline);
-  --buffer-h: 2px;
+  --buffer-h: 4px;   /* F2: 2px read as a hairline */
   --sweep-w: 40%;
   --sweep-travel: 250%;   /* 100% / --sweep-w: the sweep leaves the track's far edge */
   --sweep-dur: 1.2s;
@@ -305,12 +305,12 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); }
 .bufferbar-fill {
   position: absolute;
   inset: 0;
-  background: var(--accent-ring);
+  background: var(--accent);
   transform-origin: left;
   transform: scaleX(0);
   transition: transform var(--dur-fade) var(--ease-enter);
 }
-/* Its words ("Loading voice model…") are for assistive tech: a second line would move the field. */
+/* Its words ("Loading voice model…", "Preparing audio…") are for assistive tech: a second line would move the field. */
 .bufferbar-label {
   position: absolute;
   width: 1px;
@@ -319,7 +319,7 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); }
   clip-path: inset(50%);
   white-space: nowrap;
 }
-/* Model loading: an indeterminate sweep (a11y.css stills it under reduced motion). */
+/* Model or the sentence being read loading: an indeterminate sweep (a11y.css stills it under reduced motion). */
 #bufferbar.is-loading .bufferbar-fill {
   right: auto;
   width: var(--sweep-w);
@@ -329,17 +329,19 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); }
 }
 @keyframes buffer-sweep { from { transform: translateX(-100%); } to { transform: translateX(var(--sweep-travel)); } }
 
-/* ── Read options ───────────────────────────────────────────────────────── */
-#read-options, #scroll-options {
+/* ── Settings sections (Inclusions, Scrolling, Personalise voice) ───────── */
+#read-options, #scroll-options, #voiceTune {
   background: var(--panel-2);
   border: var(--hairline) solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
 }
-#read-options summary, #scroll-options summary { cursor: pointer; list-style: none; }
-#read-options summary::-webkit-details-marker, #scroll-options summary::-webkit-details-marker { display: none; }
-#read-options summary::before, #scroll-options summary::before { content: "▸ "; color: var(--text-muted); }
-#read-options[open] summary::before, #scroll-options[open] summary::before { content: "▾ "; }
+#read-options summary, #scroll-options summary, #voiceTune summary { cursor: pointer; list-style: none; }
+#read-options summary::-webkit-details-marker, #scroll-options summary::-webkit-details-marker,
+#voiceTune summary::-webkit-details-marker { display: none; }
+#read-options summary::before, #scroll-options summary::before, #voiceTune summary::before { content: "▸ "; color: var(--text-muted); }
+#read-options[open] summary::before, #scroll-options[open] summary::before, #voiceTune[open] summary::before { content: "▾ "; }
+.tune { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-2); }
 
 .opts { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
 .opts label {
@@ -429,6 +431,24 @@ body.sidebar-collapsed #rail {
 .rail-btn:active:not(:disabled) { background: var(--pressed-bg); transform: scale(var(--press-scale)); }
 .rail-btn:disabled { opacity: 0.4; cursor: default; }
 .rail-btn.t-play:not(:disabled) { color: var(--accent); }
+/* The buffer meter as a ring round the rail's play button (bufferbar.js `ring`): the sidebar's line is hidden with it. */
+#railPpBtn { position: relative; border-radius: 50%; --ring-w: 3px; --ring-arc: 0.25turn; --ring-dur: 1s; }
+#railPpBtn.has-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--ready) * 1turn), var(--hover-bg) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--ring-w)), #000 calc(100% - var(--ring-w)));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--ring-w)), #000 calc(100% - var(--ring-w)));
+  pointer-events: none;
+}
+/* Model or the sentence being read loading: a spinning arc (a11y.css stills it under reduced motion). */
+#railPpBtn.has-ring.is-loading::after {
+  background: conic-gradient(var(--accent) var(--ring-arc), var(--hover-bg) 0);
+  animation: ring-spin var(--ring-dur) linear infinite;
+}
+@keyframes ring-spin { to { transform: rotate(1turn); } }
 #railFollowBtn.attention:not(:disabled) { color: var(--accent); background: var(--accent-dim); }
 #railFollowBtn[aria-checked="true"] { color: var(--accent); }
 .rail-speed {

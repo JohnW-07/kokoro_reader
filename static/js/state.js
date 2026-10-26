@@ -5,6 +5,8 @@
 
 import { loadSubs } from './subs.js';
 import { clampZoom, ZOOM_FIT } from './zoom.js';
+import { clampPitch, clampExpr } from './voiceshape.js';
+import { clampDb, clampEven } from './voicefx.js';
 import { VIEW_MARGIN, VIEW_SECTIONS } from './anchors.js';
 import { cleanRates } from './eta.js';
 
@@ -35,6 +37,13 @@ const INITIAL = Object.freeze({
   /** Dev switch: synthesise with the Siri voice instead of `voice`; see engineswitch.js. */
   siriVoice: false,
   speed: 1.0,
+  /** Kokoro's native voice knobs (V1); see voiceshape.js. 1 is the model's own voice. */
+  voicePitch: 1,
+  voiceExpr: 1,
+  /** Bass/Treble (dB) and Even-out (0–1) applied after generation (V1); see voicefx.js. */
+  fxBass: 0,
+  fxTreble: 0,
+  fxEven: 0,
   /** Page zoom; 1 is fit-to-width. See zoom.js. */
   zoom: ZOOM_FIT,
   options: DEFAULT_OPTIONS,
@@ -145,6 +154,12 @@ export function loadPrefs() {
       followEnabled: saved.followEnabled !== false,
       smoothScroll: saved.smoothScroll !== false,
       etaRates: cleanRates(saved.etaRates),
+      // Absent in prefs written before V1: clampPitch/clampExpr turn that into neutral.
+      voicePitch: clampPitch(saved.voicePitch),
+      voiceExpr: clampExpr(saved.voiceExpr),
+      fxBass: clampDb(saved.fxBass),
+      fxTreble: clampDb(saved.fxTreble),
+      fxEven: clampEven(saved.fxEven),
     });
   } catch (err) {
     console.warn('could not read saved preferences', err);
@@ -155,11 +170,11 @@ export function savePrefs() {
   try {
     const {
       voice, speed, zoom, options, sidebarCollapsed, notesCollapsed, highlightsCollapsed, notesView, subs, siriVoice,
-      followEnabled, smoothScroll, etaRates,
+      followEnabled, smoothScroll, etaRates, voicePitch, voiceExpr, fxBass, fxTreble, fxEven,
     } = current;
     localStorage.setItem(PREF_KEY, JSON.stringify({
       voice, speed, zoom, options, sidebarCollapsed, notesCollapsed, highlightsCollapsed, notesView, subs, siriVoice,
-      followEnabled, smoothScroll, etaRates,
+      followEnabled, smoothScroll, etaRates, voicePitch, voiceExpr, fxBass, fxTreble, fxEven,
     }));
   } catch (err) {
     console.warn('could not save preferences', err);

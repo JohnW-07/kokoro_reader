@@ -23,8 +23,9 @@ from typing import Any, Callable, Iterator, Sequence
 import numpy as np
 import soundfile as sf
 
-from kokoro_reader import config, stats_store
+from kokoro_reader import config, stats_store, voiceshape
 from kokoro_reader.hf_cache import cached_path_or_id
+from kokoro_reader.voiceshape import NEUTRAL, VoiceShape
 
 log = logging.getLogger(__name__)
 
@@ -226,8 +227,10 @@ def pad_tail(wav: bytes, ms: float) -> bytes:
 
 # ── On-disk LRU cache (failures degrade to "no cache", never raise) ───────────
 
-def cache_key(model_id: str, voice: str, speed: float, text: str) -> str:
-    raw = f"{model_id}|{voice}|{speed:.2f}|v{AUDIO_FORMAT_VERSION}|{text}"
+def cache_key(
+    model_id: str, voice: str, speed: float, text: str, shape: VoiceShape = NEUTRAL
+) -> str:
+    raw = f"{model_id}|{voice}|{speed:.2f}{shape.key()}|v{AUDIO_FORMAT_VERSION}|{text}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
@@ -374,7 +377,8 @@ class TTSEngine:
             raise TTSError(f"could not list voices: {exc}") from exc
 
     def synthesize(
-        self, text: str, voice: str, speed: float = 1.0, pause: str = DEFAULT_PAUSE
+        self, text: str, voice: str, speed: float = 1.0, pause: str = DEFAULT_PAUSE,
+        shape: VoiceShape = NEUTRAL,
     ) -> bytes:
         """Return a complete WAV byte string for `text`, ending in the `pause` beat."""
         clean = text.strip()
@@ -383,10 +387,10 @@ class TTSEngine:
         if pause not in PAUSE_TAIL_MS:
             raise TTSError(f"unknown pause {pause!r}")
         speed = float(speed)
-        key = cache_key(self._cache_id, voice, speed, clean)
+        key = cache_key(self._cache_id, voice, speed, clean, shape)
         wav = cache_read(key)
         if wav is None:
-            with self._slot():
+            with self._slot(), voiceshape.using(shape):
                 wav = self._render(clean, voice, speed)
             cache_write(key, wav)
         return pad_tail(wav, PAUSE_TAIL_MS[pause] - TAIL_PAD_MS)
@@ -433,7 +437,7 @@ class TTSEngine:
 
     def _load(self) -> Any:
         try:
-            return count_phoneme_tokens(self._loader(self._model_id))
+            return voiceshape.install(count_phoneme_tokens(self._loader(self._model_id)))
         except Exception as exc:  # noqa: BLE001 - surfaced as TTSError
             raise TTSError(f"could not load TTS model {self._model_id!r}: {exc}") from exc
 

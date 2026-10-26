@@ -124,6 +124,21 @@ body.notes-collapsed #view-status { transition-timing-function: var(--ease-exit)
   cursor: pointer;
 }
 #page-pill:hover { background: var(--hover-bg); }
+/* F1: the hold on following, said where the eye already is; accent so it reads as "the page stopped". */
+#follow-pill {
+  border: var(--hairline) solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--fs-footnote);
+  font-weight: 600;
+  cursor: pointer;
+}
+#follow-pill:hover { background: var(--accent-hover); }
+#follow-pill[hidden] { display: none; }
 /* "Go to page" (N8) takes the pill's place while it is open. */
 #view-status.is-going #page-pill { display: none; }
 #page-go-input {

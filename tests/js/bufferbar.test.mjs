@@ -2,7 +2,7 @@
 // (`readyAhead`) and when that may have changed (`onChange`); bufferbar.js draws it,
 // plus a "Loading voice model…" state while /api/health says the model is not loaded.
 import { createTtsClient } from '../../static/js/ttsclient.js';
-import { createBufferBar, bufferView, LOADING_TEXT } from '../../static/js/bufferbar.js';
+import { createBufferBar, bufferView, LOADING_TEXT, FETCHING_TEXT } from '../../static/js/bufferbar.js';
 
 let pass = 0, fail = 0;
 const ok = (n, c, x = '') => { c ? (pass++, console.log(`  PASS  ${n}`)) : (fail++, console.log(`  FAIL  ${n} ${x}`)); };
@@ -20,7 +20,7 @@ globalThis.URL.createObjectURL = (b) => `blob:${b.text}`;
 globalThis.URL.revokeObjectURL = () => {};
 
 class El {
-  constructor() { this.children = []; this.attrs = {}; this.style = {}; this.textContent = ''; this.cls = new Set(); }
+  constructor() { this.children = []; this.attrs = {}; this.style = { setProperty(k, v) { this[k] = String(v); } }; this.textContent = ''; this.cls = new Set(); }
   get classList() { return { toggle: (c, on) => (on ? this.cls.add(c) : this.cls.delete(c)), contains: (c) => this.cls.has(c) }; }
   set className(v) { this.cls = new Set(v.split(' ')); }
   append(...n) { this.children.push(...n); }
@@ -46,6 +46,14 @@ console.log('\n1. ttsclient.readyAhead counts contiguous cached sentences after 
   ok('   the cursor itself is not counted', tts.readyAhead(1, 3, V, SP) === 2);
   ok('   another voice is not ready', tts.readyAhead(0, 3, 'bm_george', SP) === 0);
   ok('   another speed is not ready', tts.readyAhead(0, 3, V, 1.5) === 0);
+  ok('   isPending: nothing in flight', !tts.isPending(4, V, SP));
+  tts.prefetch(entries(4, 4));
+  ok('   isPending: queued or in flight', tts.isPending(4, V, SP) && !tts.isPending(4, V, 1.5) && !tts.isPending(5, V, SP));
+  await answerAll();
+  ok('   isPending: stored is no longer pending', !tts.isPending(4, V, SP));
+  ok('   isCached: stored, for that voice and speed only', tts.isCached(4, V, SP) && !tts.isCached(4, V, 1.5) && !tts.isCached(5, V, SP));
+  tts.clear();
+  ok('   isCached: not after clear()', !tts.isCached(4, V, SP));
   const before = tts.stats().hits;
   tts.readyAhead(0, 3, V, SP);
   ok('   a read-only probe: no hit counted', tts.stats().hits === before);
@@ -104,14 +112,14 @@ function fakeState(initial) {
     subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); },
   };
 }
-function harness({ ready = true, total = 10, index = 0, ahead = 3 } = {}) {
+function harness({ ready = true, total = 10, index = 0, ahead = 3, siriVoice = false, ring = undefined } = {}) {
   const tts = createTtsClient({ maxInflight: 4 });
   const root = new El();
-  const state = fakeState({ index, sentences: Array(total).fill({}), voice: V, speed: SP, siriVoice: false });
+  const state = fakeState({ index, sentences: Array(total).fill({}), voice: V, speed: SP, siriVoice });
   const timers = [];
   const log = { probes: 0 };
   const health = async () => { log.probes++; return { tts_ready: typeof ready === 'function' ? ready() : ready }; };
-  createBufferBar({ root, tts, health, ahead, state, voiceOf: (s) => s.voice, timer: (fn) => timers.push(fn) });
+  createBufferBar({ root, tts, health, ahead, state, voiceOf: (s) => s.voice, timer: (fn) => timers.push(fn), ring });
   const [track, label] = root.children;
   const [fill] = track?.children || [];
   return { tts, root, fill, label, state, timers, log };
@@ -179,6 +187,48 @@ console.log('\n5. the model-loading state');
   await answerAll();
 }
 
+console.log('\n5b. F2: the sentence being read is still loading (not only the first model load)');
+{
+  const b = harness({ index: 2 });
+  b.tts.prefetch(entries(2, 2));
+  await flush();
+  ok('   model loaded, cursor sentence fetching: it sweeps', b.root.classList.contains('is-loading'));
+  ok('   …and says it is preparing audio, not loading the model', b.label.textContent === FETCHING_TEXT);
+  ok('   indeterminate: no aria-valuenow', b.root.attrs['aria-valuenow'] === undefined);
+  await answerAll();
+  ok('   the cursor sentence arrives: back to the meter', !b.root.classList.contains('is-loading') && b.label.textContent === '');
+  b.tts.prefetch(entries(3, 4));
+  await flush();
+  ok('   cursor sentence ready, look-ahead fetching: the meter, not a sweep', !b.root.classList.contains('is-loading'));
+  await answerAll();
+  b.state.set({ index: 7 });
+  ok('   cursor on an uncached sentence but nothing waiting: no sweep', !b.root.classList.contains('is-loading'));
+  b.tts.prefetch(entries(8, 9));
+  await flush();
+  ok('   only the look-ahead fetching (a paused jump): the meter, not a sweep', !b.root.classList.contains('is-loading'));
+  await answerAll();
+  b.tts.prefetch(entries(7, 7));
+  await flush();
+  ok('   later sentence fetching: sweeps again', b.root.classList.contains('is-loading'));
+  await answerAll();
+}
+
+console.log('\n5c. F2: a Siri voice never says "Loading voice model…" (health reports the Kokoro model only)');
+{
+  const b = harness({ ready: false, siriVoice: true });
+  b.tts.prefetch(entries(0, 0));
+  await flush();
+  ok('   Siri, Kokoro model not loaded: sweeps as preparing audio', b.root.classList.contains('is-loading') && b.label.textContent === FETCHING_TEXT);
+  ok('   …and never asks health', b.log.probes === 0);
+  await answerAll();
+  b.state.set({ siriVoice: false });
+  b.tts.clear();   // as engineswitch does
+  b.tts.prefetch(entries(0, 0));
+  await flush();
+  ok('   switching to Kokoro with its model unloaded: loading the model', b.label.textContent === LOADING_TEXT);
+  await answerAll();
+}
+
 console.log('\n6. no markup, or health down');
 {
   let threw = false;
@@ -216,9 +266,49 @@ console.log('\n8. markup and styles');
   ok('   ... and not inside the live region, whose text setStatus rewrites',
       !/<div id="status-bar"[^>]*>[^<]*<div id="bufferbar"/.test(html));
   ok('   it is no longer under the transport', html.indexOf('id="bufferbar"') < html.indexOf('id="transport"'));
-  ok('   colours come from the tokens', /\.bufferbar-fill \{[^}]*background: var\(--accent-ring\)/.test(side));
+  ok('   colours come from the tokens: the solid accent (F2: was the pale ring)', /\.bufferbar-fill \{[^}]*background: var\(--accent\)/.test(side));
+  ok('   F2: thick enough to see (4px)', /--buffer-h: 4px/.test(side));
   ok('   reduced motion stills the sweep',
       /prefers-reduced-motion: reduce\)[\s\S]*#bufferbar\.is-loading \.bufferbar-fill \{[^}]*animation: none/.test(a11y));
+}
+
+console.log('\n9. the rail\'s play button carries the same status as a ring (sidebar folded in)');
+{
+  let loaded = false;
+  const ring = new El();
+  const b = harness({ ready: () => loaded, ring });
+  ok('   a script: the ring shows, empty', ring.classList.contains('has-ring') && ring.style['--ready'] === '0');
+  b.tts.prefetch(entries(1, 1));
+  await flush();
+  ok('   model loading: the ring spins (is-loading), no fill', ring.classList.contains('is-loading') && ring.style['--ready'] === '0');
+  loaded = true;
+  b.timers.shift()();
+  await flush();
+  await answerAll();
+  ok('   one of three ready: a third of the ring', !ring.classList.contains('is-loading')
+    && Math.abs(Number(ring.style['--ready']) - 1 / 3) < 1e-9, ring.style['--ready']);
+  b.tts.prefetch(entries(2, 3));
+  await answerAll();
+  ok('   all ready: full ring', ring.style['--ready'] === '1');
+  b.state.set({ sentences: [] });
+  ok('   no script: no ring', !ring.classList.contains('has-ring'));
+  const fetchRing = new El();
+  const fetching = harness({ ring: fetchRing });
+  fetching.tts.get(0, 's0', V, SP);
+  await flush();
+  ok('   the sentence being read is loading: the ring spins too', fetchRing.classList.contains('is-loading'));
+  await answerAll();
+}
+{
+  const { readFileSync } = await import('node:fs');
+  const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
+  const side = read('static/css/sidebar.css');
+  const a11y = read('static/css/a11y.css');
+  ok('   main.js hands it the rail\'s play button', /createBufferBar\(\{[^}]*ring: ui\.el\('railPpBtn'\)/.test(read('static/js/main.js')));
+  ok('   the ring is a conic fill of --ready in the accent', /#railPpBtn\.has-ring::after \{[^}]*conic-gradient\(var\(--accent\) calc\(var\(--ready\) \* 1turn\)/.test(side));
+  ok('   loading spins it', /#railPpBtn\.has-ring\.is-loading::after \{[^}]*animation: ring-spin/.test(side));
+  ok('   reduced motion stills the spin',
+      /prefers-reduced-motion: reduce\)[\s\S]*#railPpBtn\.has-ring\.is-loading::after \{[^}]*animation: none/.test(a11y));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

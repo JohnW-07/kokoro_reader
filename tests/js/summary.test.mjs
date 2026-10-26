@@ -102,6 +102,33 @@ await test('summarySentences splits on sentence ends, keeps decimals, and freeze
   assert.deepEqual(rules.summarySentences('', 1), []);
 });
 
+await test('summaryPage is the page on screen, else the cursor page', () => {
+  const s = { sentences: SCRIPT, index: 4 };
+  assert.equal(rules.summaryPage(2, s), 2);
+  assert.equal(rules.summaryPage(0, s), 3);
+  assert.equal(rules.summaryPage(undefined, s), 3);
+});
+
+const NOTES = {
+  heading: 'Benchmarks', context: 'Twelve tests against a baseline.', points: ['GSM8K: 84.2 percent', 'Training: 21 days'],
+  summary: 'Benchmarks. Twelve tests against a baseline. GSM8K: 84.2 percent. Training: 21 days.', backend: 'apple', cached: false,
+};
+
+await test('notesSentences reads heading, context, then each point, and freezes', () => {
+  const list = rules.notesSentences(NOTES, 4);
+  assert.deepEqual(list.map((s) => [s.role, s.text]), [
+    ['heading', 'Benchmarks'], ['context', 'Twelve tests against a baseline.'],
+    ['point', 'GSM8K: 84.2 percent'], ['point', 'Training: 21 days'],
+  ]);
+  assert.ok(Object.isFrozen(list) && list.every((s) => Object.isFrozen(s) && s.page === 4 && s.kind === 'summary'));
+  assert.deepEqual(rules.notesSentences({ ...NOTES, heading: '' }, 4).map((s) => s.role), ['context', 'point', 'point']);
+});
+
+await test('notesSentences falls back to the flat summary when a reply has no notes', () => {
+  const prose = { summary: 'One thing. Another.', backend: 'apple', cached: false };
+  assert.deepEqual(rules.notesSentences(prose, 1).map((s) => [s.role, s.text]), [['text', 'One thing.'], ['text', 'Another.']]);
+});
+
 console.log('\n[4] the panel');
 
 function fakeState(initial) {
@@ -126,7 +153,7 @@ function fakePlayer(log, name) {
   };
 }
 
-function setup({ use_llm = false, replies = {}, onVoiceUnavailable } = {}) {
+function setup({ use_llm = false, replies = {}, onVoiceUnavailable, viewedPage } = {}) {
   const log = [];
   const root = new El('section');
   const state = fakeState({ docId: 'doc1', sentences: SCRIPT, sections: SECTIONS, index: 2, speed: 1, options: { use_llm } });
@@ -141,7 +168,7 @@ function setup({ use_llm = false, replies = {}, onVoiceUnavailable } = {}) {
     pending.push({ payload, resolve, reject });
   });
   const makePlayer = (opts) => { summaryPlayer.options = opts; log.push('makePlayer'); return summaryPlayer; };
-  const panel = createSummaryPanel({ root, state, post, mainPlayer: main, makePlayer, voiceOf: (s) => s.voice || 'af_aoede', onVoiceUnavailable });
+  const panel = createSummaryPanel({ root, state, post, mainPlayer: main, makePlayer, voiceOf: (s) => s.voice || 'af_aoede', onVoiceUnavailable, viewedPage });
   const q = (sel) => root.querySelector(sel);
   const click = (sel) => q(sel).dispatch('click');
   return { log, root, state, main, summaryPlayer, pending, panel, q, click };
@@ -162,6 +189,28 @@ await test('page button sends the cursor page text and shows the summary with th
   assert.equal(t.q('.summary-text').children.length, 2);
   assert.match(t.q('.summary-note').textContent, /may omit details/i);
   assert.match(t.q('.summary-heading').textContent, /page 2 · Apple on-device model/);
+});
+
+await test('page button summarises the page on screen, not the cursor page', async () => {
+  const t = setup({ replies: { apple: REPLY }, viewedPage: () => 3 });
+  t.click('.summary-btn');
+  await flush();
+  assert.deepEqual(t.log, ['post(apple,p3)']);
+  assert.match(t.q('.summary-heading').textContent, /page 3/);
+});
+
+await test('notes show as a title, a context line and a list, and reading marks them in order', async () => {
+  const t = setup({ replies: { apple: NOTES } });
+  t.click('.summary-btn');
+  await flush();
+  assert.equal(t.q('.summary-title').textContent, 'Benchmarks');
+  assert.equal(t.q('.summary-context').textContent, 'Twelve tests against a baseline.');
+  assert.deepEqual(t.root.querySelectorAll('.summary-points li').map((li) => li.textContent), NOTES.points);
+  t.click('.summary-play');
+  assert.equal(t.summaryPlayer.options.getSentences().length, 4);
+  t.summaryPlayer.options.onIndex(2);
+  const marked = t.root.querySelectorAll('.summary-sentence').map((n) => n.classList.contains('current'));
+  assert.deepEqual(marked, [false, false, true, false]);
 });
 
 await test('Play pauses the main reader first, then starts the summary at 0', async () => {

@@ -158,7 +158,8 @@ const IDS = ['status-bar', 'toast', 'toc-section', 'llm-hint',
     'prevBtn', 'ppBtn', 'nextBtn', 'recoverBtn', 'rebuildBtn', 'speedSlider',
     'speedVal', 'drop-zone', 'page-pill', 'welcome', 'pdf-pages', 'notes-panel', 'read-options',
     'sidebar', 'collapseBtn', 'content-area', 'notes-column', 'bufferbar', 'toc-panel', 'view-status', 'page-go',
-    'status-field'];
+    'status-field', 'pitchSlider', 'pitchVal', 'exprSlider', 'exprVal', 'bassSlider', 'bassVal',
+    'trebleSlider', 'trebleVal', 'evenSlider', 'evenVal'];
 IDS.forEach((id) => mk('div', id));
 // R3: the Highlights list heads the notes column; R4: the meter shares the status field.
 byId.get('notes-column').appendChild(byId.get('notes-panel'));
