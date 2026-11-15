@@ -6,6 +6,7 @@
 // below stands in. Pure: no DOM, no state.js; etastatus.js binds it to the app.
 
 import { ttsVoice } from './engineswitch.js';
+import { currentEntry } from './toc.js';
 
 /** ~150 words/min × ~6 chars/word (with the space). Not measured against Kokoro audio. */
 export const DEFAULT_CHARS_PER_S = 15;
@@ -108,8 +109,73 @@ export function formatEta(seconds) {
   return rest ? `${hours} h ${rest} m` : `${hours} h`;
 }
 
-export function etaText({ pageSeconds, docSeconds }) {
-  return `≈${formatEta(pageSeconds)} left on page · ${formatEta(docSeconds)} in paper`;
+// ── What the pill counts down to, picked from its dropdown (etamenu.js) ─────
+export const ETA_SCOPES = Object.freeze(['page', 'section', 'chapter', 'paper']);
+const SCOPE_WORDS = Object.freeze({ page: 'on page', section: 'in section', chapter: 'in chapter', paper: 'in paper' });
+
+/**
+ * The sentence (exclusive) where `scope` ends for sentence `index`, or -1 when the paper has
+ * no such scope there. Sections are contents entries (toc.js) of any depth, chapters depth 0.
+ */
+export function scopeEnd(sentences, entries, index, scope) {
+  const n = sentences.length;
+  if (scope === 'paper') return n;
+  if (scope === 'page') {
+    let i = index;
+    while (i < n && sentences[i].page === sentences[index].page) i += 1;
+    return i;
+  }
+  const list = scope === 'chapter' ? entries.filter((e) => e.depth === 0) : entries;
+  const at = currentEntry(list, index);
+  if (at < 0) return -1;
+  const start = list[at].index;
+  return list.reduce((end, e) => (e.index > start && e.index < end ? e.index : end), n);
+}
+
+/** Seconds left in each scope the paper has at `index`, e.g. {page, chapter, paper}; null with no script. */
+export function scopeSeconds({ sentences, index, entries = [], perChar }) {
+  if (!sentences?.length) return null;
+  const from = Math.min(Math.max(0, index | 0), sentences.length - 1);
+  const out = {};
+  for (const scope of ETA_SCOPES) {
+    const end = scopeEnd(sentences, entries, from, scope);
+    if (end < 0) continue;
+    let chars = 0;
+    for (let i = from; i < end; i += 1) chars += spokenChars(sentences[i]);
+    out[scope] = chars * perChar;
+  }
+  return out;
+}
+
+/** The scope actually shown: the one asked for when the paper has it, else the page. */
+export const shownScope = (left, scope) => (left && scope in left ? scope : 'page');
+
+/** "≈3 min left in chapter · 1 h 12 m in paper"; the paper scope stands alone. */
+export function scopeText(left, scope) {
+  const shown = shownScope(left, scope);
+  const head = `≈${formatEta(left[shown])} left ${SCOPE_WORDS[shown]}`;
+  return shown === 'paper' ? head : `${head} · ${formatEta(left.paper)} in paper`;
+}
+
+// ── Optional extras (Settings): reading speed and TTS time ──────────────────
+/** Words per spoken character over the script; computed once per paper by the caller. */
+export function wordsPerChar(sentences) {
+  let words = 0;
+  let chars = 0;
+  for (const s of sentences || []) {
+    const t = (s && (s.text || s.raw)) || '';
+    chars += t.length;
+    words += (t.match(/\S+/g) || []).length;
+  }
+  return chars ? words / chars : 0;
+}
+
+/** "182 wpm · TTS 48 s": the learnt rate in words, and time spent fetching audio this session. */
+export function statsText({ wordsPerChar: wpc, perChar, computeMs }) {
+  const wpm = Math.round((SECONDS_PER_MINUTE * wpc) / perChar);
+  const secs = computeMs / 1000;
+  const tts = secs < SECONDS_PER_MINUTE ? `${Math.round(secs)} s` : formatEta(secs);
+  return `${wpm} wpm · TTS ${tts}`;
 }
 
 /**

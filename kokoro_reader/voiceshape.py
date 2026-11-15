@@ -8,6 +8,10 @@ unchanged; expressiveness 0.5/1.5 -> rendered F0 IQR 0.53x/1.43x, median unchang
 
 The shape travels by a thread-local, set around ``generate`` with ``using``; the model's
 own lock serialises ``forward``, so the predictor reads the shape of the thread rendering.
+
+V2: Siri has no F0 to hook, so ``shape_audio`` applies the same curve edit to its rendered
+waveform with Praat's PSOLA (parselmouth). Measured on Nora, 6 s, 48 kHz: pitch 0.85/1.15 ->
+median 0.854x/1.153x; expressiveness 0.5/1.5 -> F0 IQR 0.50x/1.42x; length unchanged; ~23 ms.
 """
 
 from __future__ import annotations
@@ -18,9 +22,13 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Iterator
 
+import numpy as np
+
 PITCH_MIN, PITCH_MAX = 0.85, 1.15                     # the measured range
 EXPRESSIVENESS_MIN, EXPRESSIVENESS_MAX = 0.5, 1.5
 VOICED_HZ = 50.0                                      # predicted F0 below this is unvoiced
+PSOLA_STEP_S = 0.01                                   # Praat's pitch analysis, for shape_audio
+PSOLA_FLOOR_HZ, PSOLA_CEILING_HZ = 75.0, 600.0        # Praat's speech defaults
 _SHAPING_MARK = "_kokoro_reader_shapes_f0"
 
 _current = threading.local()
@@ -66,10 +74,37 @@ def shape_f0(f0: Any, shape: VoiceShape) -> Any:
     return mx.where(voiced, stretched * shape.pitch, f0)
 
 
+def shape_audio(audio: np.ndarray, rate: int, shape: VoiceShape) -> np.ndarray:
+    """``shape_f0`` for a rendered waveform: edit Praat's pitch tier, resynthesise by PSOLA.
+
+    Neutral, or audio with no voiced frames, is returned as the same array.
+    """
+    if shape.is_neutral:
+        return audio
+    import parselmouth  # imported lazily: only Siri renders need it
+    from parselmouth.praat import call
+
+    sound = parselmouth.Sound(np.asarray(audio, dtype=np.float64), sampling_frequency=rate)
+    manipulation = call(sound, "To Manipulation", PSOLA_STEP_S, PSOLA_FLOOR_HZ, PSOLA_CEILING_HZ)
+    tier = call(manipulation, "Extract pitch tier")
+    if call(tier, "Get number of points") == 0:
+        return audio
+    mean = call(tier, "Get mean (points)", 0, 0)
+    call(tier, "Formula", f"max(0, {mean} + (self - {mean}) * {shape.expressiveness}) * {shape.pitch}")
+    call([tier, manipulation], "Replace pitch tier")
+    shaped = call(manipulation, "Get resynthesis (overlap-add)").values[0]
+    return shaped[: len(audio)].astype(np.float32)
+
+
+def current() -> VoiceShape:
+    """The shape this thread renders with (set by ``using``)."""
+    return getattr(_current, "shape", NEUTRAL)
+
+
 @contextmanager
 def using(shape: VoiceShape) -> Iterator[None]:
     """Render with ``shape`` on this thread only."""
-    previous = getattr(_current, "shape", NEUTRAL)
+    previous = current()
     _current.shape = shape
     try:
         yield
@@ -88,7 +123,7 @@ def install(model: Any) -> Any:
     @wraps(predict)
     def shaped(*args: Any, **kwargs: Any) -> Any:
         f0, noise = predict(*args, **kwargs)
-        return shape_f0(f0, getattr(_current, "shape", NEUTRAL)), noise
+        return shape_f0(f0, current()), noise
 
     setattr(shaped, _SHAPING_MARK, True)
     predictor.F0Ntrain = shaped

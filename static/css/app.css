@@ -1,9 +1,12 @@
 /* ── Design tokens ──────────────────────────────────────────────────────────
    These custom properties are the shared contract with notes.css. Change a
-   colour here and the highlight/notes UI follows. Light only (D6).
+   colour here and the highlight/notes UI follows. This block is the Light
+   theme; themes.css re-declares the colour tokens per theme (docs/19, D6).
    Contrast (WCAG 2.x, measured by tests/js/styles.test.mjs): --text and
    --text-muted clear 4.5:1 on every surface they sit on.                    */
 :root {
+  color-scheme: light;
+
   /* Surfaces */
   --bg:           #f5f5f7;   /* the reading canvas behind the pages */
   --panel:        #efeff2;   /* sidebar: the heavier, structural material */

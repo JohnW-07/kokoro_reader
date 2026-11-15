@@ -87,7 +87,7 @@ await test('compact text for the status bar', () => {
   assert.equal(eta.formatEta(3 * 60 + 10), '3 min');
   assert.equal(eta.formatEta(72 * 60), '1 h 12 m');
   assert.equal(eta.formatEta(2 * 3600), '2 h');
-  assert.equal(eta.etaText({ pageSeconds: 180, docSeconds: 72 * 60 }), '≈3 min left on page · 1 h 12 m in paper');
+  assert.equal(eta.scopeText({ page: 180, paper: 72 * 60 }, 'page'), '≈3 min left on page · 1 h 12 m in paper');
 });
 
 // ── the tracker: turns playback.js listen events into samples ────────────────
@@ -134,6 +134,40 @@ await test('junk events are ignored', () => {
   assert.equal(saved.length, 0);
 });
 
+// ── scopes: page → section → chapter → paper ─────────────────────────────────
+// Chapter A (depth 0) at 0 holds section A.1 at 1; chapter B at 3. Pages: 1,1,2,2.
+const TOC = [{ index: 0, depth: 0 }, { index: 1, depth: 1 }, { index: 3, depth: 0 }];
+
+await test('each scope ends where its page, contents entry or the paper ends', () => {
+  assert.equal(eta.scopeEnd(DOC, TOC, 1, 'page'), 2);
+  assert.equal(eta.scopeEnd(DOC, TOC, 1, 'section'), 3, 'A.1 runs to chapter B');
+  assert.equal(eta.scopeEnd(DOC, TOC, 0, 'section'), 1, 'chapter A\'s own text ends at A.1');
+  assert.equal(eta.scopeEnd(DOC, TOC, 1, 'chapter'), 3);
+  assert.equal(eta.scopeEnd(DOC, TOC, 3, 'chapter'), 4);
+  assert.equal(eta.scopeEnd(DOC, [], 1, 'chapter'), -1, 'no contents, no chapter');
+  assert.equal(eta.scopeEnd(DOC, TOC, 1, 'paper'), 4);
+});
+
+await test('seconds per scope, only the scopes the paper has, and a missing scope shows the page', () => {
+  const left = eta.scopeSeconds({ sentences: DOC, index: 1, entries: TOC, perChar: 1 });
+  assert.deepEqual(left, { page: 20, section: 50, chapter: 50, paper: 90 });
+  assert.equal(eta.shownScope(left, 'chapter'), 'chapter');
+  const bare = eta.scopeSeconds({ sentences: DOC, index: 1, entries: [], perChar: 1 });
+  assert.deepEqual(Object.keys(bare), ['page', 'paper']);
+  assert.equal(eta.shownScope(bare, 'chapter'), 'page');
+  assert.equal(eta.scopeText(bare, 'chapter'), '≈<1 min left on page · 2 min in paper');
+  assert.equal(eta.scopeText({ paper: 600, page: 60 }, 'paper'), '≈10 min left in paper');
+  assert.equal(eta.scopeSeconds({ sentences: [], index: 0, perChar: 1 }), null);
+});
+
+await test('stats: wpm from the learnt rate and words per char, TTS time in s then min', () => {
+  assert.equal(eta.wordsPerChar([s(1, 'ab cd'), s(1, 'efgh')]), 3 / 9);
+  assert.equal(eta.wordsPerChar([]), 0);
+  // 1/6 word per char at 15 chars/s → 2.5 words/s → 150 wpm
+  assert.equal(eta.statsText({ wordsPerChar: 1 / 6, perChar: 1 / 15, computeMs: 48_400 }), '150 wpm · TTS 48 s');
+  assert.equal(eta.statsText({ wordsPerChar: 1 / 6, perChar: 1 / 15, computeMs: 190_000 }), '150 wpm · TTS 3 min');
+});
+
 // ── etastatus.js: the readout beside the page pill ───────────────────────────
 const { createEtaStatus } = await import('../../static/js/etastatus.js');
 const fakeState = (initial) => {
@@ -149,7 +183,7 @@ const fakeState = (initial) => {
 fakeState.saves = 0;
 
 await test('the readout is hidden with no paper, and follows the cursor and the learnt rate', () => {
-  const root = { hidden: false, textContent: 'stale' };
+  const root = { hidden: false, textContent: 'stale', addEventListener: () => {} };
   const st = fakeState({ docId: null, sentences: [], index: 0, etaRates: {}, voice: V, siriVoice: false, speed: 1 });
   const status = createEtaStatus({ root, state: st });
   assert.equal(root.hidden, true);
@@ -163,6 +197,21 @@ await test('the readout is hidden with no paper, and follows the cursor and the 
   status.listen(heard(2, 'w'.repeat(1500))); status.listen(time(150)); status.listen(heard(3, 'w'.repeat(1500)));
   assert.equal(fakeState.saves, 1, 'a learnt rate is saved to prefs');
   assert.equal(root.textContent, '≈5 min left on page · 5 min in paper');   // 0.1 s/char × 3000
+});
+
+await test('the readout follows the chosen scope, and the extras add wpm and TTS time', () => {
+  const root = { hidden: true, textContent: '' };
+  const long = Array.from({ length: 4 }, (_, i) => s(i < 2 ? 1 : 2, 'w'.repeat(1500)));
+  const st = fakeState({ docId: 'ab12cd34', sentences: long, index: 0, etaRates: {}, voice: V, siriVoice: false,
+    speed: 1, tocEntries: [{ index: 0, depth: 0 }, { index: 3, depth: 0 }], etaScope: 'page', etaStats: false });
+  createEtaStatus({ root, state: st, getComputeMs: () => 5000 });
+  assert.equal(root.textContent, '≈3 min left on page · 7 min in paper');
+  st.set({ etaScope: 'section' });
+  assert.equal(root.textContent, '≈5 min left in section · 7 min in paper');   // 4500 / 15 = 300 s
+  st.set({ etaScope: 'paper', etaStats: true });
+  assert.match(root.textContent, /^≈7 min left in paper · \d+ wpm · TTS 5 s$/);
+  st.set({ etaScope: 'chapter', tocEntries: [] });
+  assert.match(root.textContent, /^≈3 min left on page · /, 'a scope the paper lacks shows the page');
 });
 
 // ── the stats page's "This paper" numbers travel in the frame URL ────────────

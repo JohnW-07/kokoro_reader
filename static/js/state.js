@@ -8,7 +8,7 @@ import { clampZoom, ZOOM_FIT } from './zoom.js';
 import { clampPitch, clampExpr } from './voiceshape.js';
 import { clampDb, clampEven } from './voicefx.js';
 import { VIEW_MARGIN, VIEW_SECTIONS } from './anchors.js';
-import { cleanRates } from './eta.js';
+import { cleanRates, ETA_SCOPES } from './eta.js';
 
 /** @typedef {'yellow'|'green'|'blue'|'pink'} HighlightColor */
 
@@ -67,6 +67,13 @@ const INITIAL = Object.freeze({
   smoothScroll: true,
   /** Learnt speaking rates per voice and speed, for the reading ETA (N11); see eta.js. */
   etaRates: Object.freeze({}),
+  /** What the ETA pill counts down to (eta.js ETA_SCOPES), and whether it adds wpm and TTS time. */
+  etaScope: 'page',
+  etaStats: false,
+  /** The paper's contents entries (toc.js), set by nav.js; the ETA's sections and chapters. */
+  tocEntries: Object.freeze([]),
+  /** Colour theme id, or 'system' (docs/19); themeboot.js resolves and applies it. */
+  theme: 'light',
 });
 
 let current = INITIAL;
@@ -115,6 +122,7 @@ export function resetDocument() {
     sentences: [],
     scriptStats: null,
     sections: [],
+    tocEntries: [],
     pageMarks: [],
     index: 0,
     highlights: [],
@@ -154,12 +162,16 @@ export function loadPrefs() {
       followEnabled: saved.followEnabled !== false,
       smoothScroll: saved.smoothScroll !== false,
       etaRates: cleanRates(saved.etaRates),
+      etaScope: ETA_SCOPES.includes(saved.etaScope) ? saved.etaScope : 'page',
+      etaStats: saved.etaStats === true,
       // Absent in prefs written before V1: clampPitch/clampExpr turn that into neutral.
       voicePitch: clampPitch(saved.voicePitch),
       voiceExpr: clampExpr(saved.voiceExpr),
       fxBass: clampDb(saved.fxBass),
       fxTreble: clampDb(saved.fxTreble),
       fxEven: clampEven(saved.fxEven),
+      // Absent before docs/19: Light. An unknown id also draws Light (themeboot.js).
+      theme: typeof saved.theme === 'string' ? saved.theme : current.theme,
     });
   } catch (err) {
     console.warn('could not read saved preferences', err);
@@ -170,11 +182,11 @@ export function savePrefs() {
   try {
     const {
       voice, speed, zoom, options, sidebarCollapsed, notesCollapsed, highlightsCollapsed, notesView, subs, siriVoice,
-      followEnabled, smoothScroll, etaRates, voicePitch, voiceExpr, fxBass, fxTreble, fxEven,
+      followEnabled, smoothScroll, etaRates, etaScope, etaStats, voicePitch, voiceExpr, fxBass, fxTreble, fxEven, theme,
     } = current;
     localStorage.setItem(PREF_KEY, JSON.stringify({
       voice, speed, zoom, options, sidebarCollapsed, notesCollapsed, highlightsCollapsed, notesView, subs, siriVoice,
-      followEnabled, smoothScroll, etaRates, voicePitch, voiceExpr, fxBass, fxTreble, fxEven,
+      followEnabled, smoothScroll, etaRates, etaScope, etaStats, voicePitch, voiceExpr, fxBass, fxTreble, fxEven, theme,
     }));
   } catch (err) {
     console.warn('could not save preferences', err);

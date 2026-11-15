@@ -34,8 +34,9 @@ ok('   a shape → pitch and expr', JSON.stringify(shapeParams({ voicePitch: 1.1
   === '{"pitch":"1.1","expr":"1"}');
 ok('   expressiveness alone is a shape too', JSON.stringify(shapeParams({ voicePitch: 1, voiceExpr: 1.3, siriVoice: false }))
   === '{"pitch":"1","expr":"1.3"}');
-ok('   Siri → nothing (the server cannot shape it)',
-  JSON.stringify(shapeParams({ voicePitch: 1.1, voiceExpr: 1.3, siriVoice: true })) === '{}');
+ok('   Siri is shaped too (V2: after rendering)',
+  JSON.stringify(shapeParams({ voicePitch: 1.1, voiceExpr: 1.3, siriVoice: true }))
+    === JSON.stringify({ pitch: '1.1', expr: '1.3' }));
 ok('   labels: pitch as a signed percent, expressiveness as a percent',
   formatPitch(1.1) === '+10%' && formatPitch(0.85) === '−15%' && formatPitch(1) === '0%' && formatExpr(1.5) === '150%',
   `${formatPitch(1.1)} ${formatPitch(0.85)} ${formatPitch(1)} ${formatExpr(1.5)}`);

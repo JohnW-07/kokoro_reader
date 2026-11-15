@@ -329,18 +329,18 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); }
 }
 @keyframes buffer-sweep { from { transform: translateX(-100%); } to { transform: translateX(var(--sweep-travel)); } }
 
-/* ── Settings sections (Inclusions, Scrolling, Personalise voice) ───────── */
-#read-options, #scroll-options, #voiceTune {
+/* ── Settings sections (Inclusions, Scrolling, Appearance, Personalise voice) */
+#read-options, #scroll-options, #themeOptions, #voiceTune {
   background: var(--panel-2);
   border: var(--hairline) solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
 }
-#read-options summary, #scroll-options summary, #voiceTune summary { cursor: pointer; list-style: none; }
+#read-options summary, #scroll-options summary, #themeOptions summary, #voiceTune summary { cursor: pointer; list-style: none; }
 #read-options summary::-webkit-details-marker, #scroll-options summary::-webkit-details-marker,
-#voiceTune summary::-webkit-details-marker { display: none; }
-#read-options summary::before, #scroll-options summary::before, #voiceTune summary::before { content: "▸ "; color: var(--text-muted); }
-#read-options[open] summary::before, #scroll-options[open] summary::before, #voiceTune[open] summary::before { content: "▾ "; }
+#themeOptions summary::-webkit-details-marker, #voiceTune summary::-webkit-details-marker { display: none; }
+#read-options summary::before, #scroll-options summary::before, #themeOptions summary::before, #voiceTune summary::before { content: "▸ "; color: var(--text-muted); }
+#read-options[open] summary::before, #scroll-options[open] summary::before, #themeOptions[open] summary::before, #voiceTune[open] summary::before { content: "▾ "; }
 .tune { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-2); }
 
 .opts { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }

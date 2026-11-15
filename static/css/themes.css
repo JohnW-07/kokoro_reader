@@ -1,0 +1,147 @@
+/* ── Themes (docs/19) ─────────────────────────────────────────────────────────
+   Light is app.css's :root. Each theme below re-declares only the colour tokens;
+   `:root[data-theme=…]` outranks a bare `:root`, so link order does not matter.
+   themeboot.js sets data-theme in <head>, before the first paint.
+   Paper tokens are NOT themed: --reading-bg, --selection-bg, --scrim-dot and the
+   --hl-* tints are drawn onto the white PDF page (document.css), which stays white.
+   Contrast for every theme is measured by tests/js/styles.test.mjs.            */
+
+/* Graphite: a neutral dark with a faint blue-slate cast, so it reads as a material
+   rather than as black. The light theme's blue accent, lifted for a dark ground. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:           #131519;   /* the deepest layer: white pages float on it */
+  --panel:        #1b1d22;
+  --panel-material: rgba(27, 29, 34, 0.96);
+  --panel-2:      #24272d;   /* raised = lighter, in the dark */
+  --notes-bg:     #181a1e;
+  --input-bg:     #1f2227;
+  --hover-bg:     #2b2e35;
+  --pressed-bg:   #343841;
+  --border:       #353941;
+  --scroll-thumb: #4a4f58;
+
+  --text:         #e5e7eb;
+  --text-muted:   #a0a5b0;
+  --on-accent:    #0a1626;
+
+  --accent:       #7fb3ff;
+  --accent-hover: #9cc4ff;
+  --accent-dim:   rgba(127, 179, 255, 0.12);
+  --accent-ring:  rgba(127, 179, 255, 0.40);
+  --success:      #6fd08c;
+  --success-dim:  rgba(111, 208, 140, 0.10);
+  --warn:         #e8b55a;
+  --danger:       #ff8585;
+  --danger-dim:   rgba(255, 133, 133, 0.12);
+
+  --material-bg:     rgba(36, 39, 45, 0.74);
+  --material-edge:   rgba(255, 255, 255, 0.07);
+  --material-border: rgba(255, 255, 255, 0.09);
+  --shadow-page:  0 0 0 1px rgba(0, 0, 0, 0.35), 0 6px 24px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 1px 3px rgba(0, 0, 0, 0.40), 0 12px 32px rgba(0, 0, 0, 0.50);
+  --shadow-segment: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --swatch-edge:  rgba(255, 255, 255, 0.18);
+  --st-hero-from: rgba(127, 179, 255, 0.16);
+  --st-hero-to:   rgba(111, 208, 140, 0.08);
+  --st-bar:       rgba(127, 179, 255, 0.45);
+}
+
+/* Lamplight: a study at night under one warm lamp. Surfaces stay near-neutral
+   charcoal (low chroma, hue ≈ 30°) so they never turn to brown; the warmth lives
+   in parchment text and a honey accent. Success is sage, danger is terracotta. */
+:root[data-theme="dark-warm"] {
+  color-scheme: dark;
+  --bg:           #161311;
+  --panel:        #1e1a17;
+  --panel-material: rgba(30, 26, 23, 0.96);
+  --panel-2:      #29241f;
+  --notes-bg:     #1b1714;
+  --input-bg:     #231e1a;
+  --hover-bg:     #322b25;
+  --pressed-bg:   #3c342d;
+  --border:       #3b332c;
+  --scroll-thumb: #554a40;
+
+  --text:         #eee2d0;   /* parchment */
+  --text-muted:   #b0a18d;
+  --on-accent:    #1f1407;
+
+  --accent:       #e8a65d;   /* honey */
+  --accent-hover: #f1b977;
+  --accent-dim:   rgba(232, 166, 93, 0.13);
+  --accent-ring:  rgba(232, 166, 93, 0.42);
+  --success:      #a3c98d;   /* sage */
+  --success-dim:  rgba(163, 201, 141, 0.10);
+  --warn:         #e9c46a;
+  --danger:       #f0907a;   /* terracotta */
+  --danger-dim:   rgba(240, 144, 122, 0.12);
+
+  --material-bg:     rgba(41, 36, 31, 0.76);
+  --material-edge:   rgba(255, 236, 210, 0.07);
+  --material-border: rgba(255, 236, 210, 0.09);
+  --shadow-page:  0 0 0 1px rgba(0, 0, 0, 0.35), 0 6px 24px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 1px 3px rgba(0, 0, 0, 0.40), 0 12px 32px rgba(0, 0, 0, 0.50);
+  --shadow-segment: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 236, 210, 0.06);
+  --swatch-edge:  rgba(255, 236, 210, 0.20);
+  --st-hero-from: rgba(232, 166, 93, 0.18);
+  --st-hero-to:   rgba(163, 201, 141, 0.08);
+  --st-bar:       rgba(232, 166, 93, 0.50);
+}
+
+/* Linen: daylight on unbleached paper. Warm cream chrome with an ink-brown text
+   and a rust accent; lower glare than Light for long daytime sessions. */
+:root[data-theme="sepia"] {
+  color-scheme: light;
+  --bg:           #ece4d6;
+  --panel:        #e6ddcd;
+  --panel-material: rgba(230, 221, 205, 0.96);
+  --panel-2:      #f8f3ea;
+  --notes-bg:     #f4eee3;
+  --input-bg:     #fbf8f2;
+  --hover-bg:     #dcd1bf;
+  --pressed-bg:   #d1c5b1;
+  --border:       #cfc2ad;
+  --scroll-thumb: #bcae98;
+
+  --text:         #2b2119;   /* ink */
+  --text-muted:   #5c4b38;
+  --on-accent:    #fff9f0;
+
+  --accent:       #843a14;   /* rust */
+  --accent-hover: #6e2f0f;
+  --accent-dim:   rgba(132, 58, 20, 0.10);
+  --accent-ring:  rgba(132, 58, 20, 0.32);
+  --success:      #355a20;
+  --success-dim:  rgba(53, 90, 32, 0.09);
+  --warn:         #865300;
+  --danger:       #a5231a;
+  --danger-dim:   rgba(165, 35, 26, 0.08);
+
+  --material-bg:     rgba(248, 243, 234, 0.74);
+  --material-edge:   rgba(255, 252, 245, 0.7);
+  --material-border: rgba(60, 40, 20, 0.10);
+  --shadow-page:  0 1px 2px rgba(60, 40, 20, 0.08), 0 4px 16px rgba(60, 40, 20, 0.09);
+  --shadow-float: 0 1px 3px rgba(60, 40, 20, 0.10), 0 10px 30px rgba(60, 40, 20, 0.14);
+  --shadow-segment: 0 1px 2px rgba(60, 40, 20, 0.14), 0 0 0 0.5px rgba(60, 40, 20, 0.05);
+  --swatch-edge:  rgba(60, 40, 20, 0.16);
+  --st-hero-from: rgba(132, 58, 20, 0.13);
+  --st-hero-to:   rgba(53, 90, 32, 0.08);
+  --st-bar:       rgba(132, 58, 20, 0.35);
+}
+
+/* More contrast (§14): the same raise app.css gives Light, per theme. */
+@media (prefers-contrast: more) {
+  :root[data-theme="dark"] {
+    --border: #6b717c; --text-muted: #c4c8d0; --hover-bg: #30343b;
+    --material-bg: #24272d; --material-border: #8a909a;
+  }
+  :root[data-theme="dark-warm"] {
+    --border: #7a6c5e; --text-muted: #d2c4b0; --hover-bg: #372f29;
+    --material-bg: #29241f; --material-border: #9a8a78;
+  }
+  :root[data-theme="sepia"] {
+    --border: #8c7c66; --text-muted: #4a3c2c; --hover-bg: #d6cab6;
+    --material-bg: #f8f3ea; --material-border: #6f604c;
+  }
+}

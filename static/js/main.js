@@ -509,7 +509,9 @@ function init() {
   // R6: macOS removed the Siri voice — read on in Kokoro rather than skip every sentence.
   const onVoiceUnavailable = () => fallBackToKokoro({ state, ui, onSwitch: () => tts.clear() });
 
-  const eta = createEtaStatus({ root: ui.el('eta-pill'), state });
+  const eta = createEtaStatus({
+    root: ui.el('eta-pill'), menu: ui.el('eta-menu'), state, getComputeMs: () => tts.stats().fetchMs,
+  });
   player = createPlayer({
     tts,
     getSentences: () => state.get().sentences,

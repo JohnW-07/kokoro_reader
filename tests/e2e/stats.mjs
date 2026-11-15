@@ -155,6 +155,32 @@ async function run() {
     });
     check('the status bar shows the ETA', !etaPill.hidden && /^≈.+ left on page · .+ in paper$/.test(etaPill.text),
       JSON.stringify(etaPill));
+    const menu = await page.evaluate(async () => {
+      const pill = document.getElementById('eta-pill');
+      const menuEl = document.getElementById('eta-menu');
+      const items = () => [...menuEl.querySelectorAll('.eta-item')];
+      const row = (b) => ({ key: b.dataset.key, on: b.getAttribute('aria-checked'), off: b.disabled, time: b.lastChild.textContent });
+      pill.click();
+      const opened = { open: menuEl.classList.contains('is-open'), expanded: pill.getAttribute('aria-expanded'), rows: items().map(row) };
+      items().find((b) => b.dataset.key === 'paper').click();
+      const picked = { text: pill.textContent, closed: !menuEl.classList.contains('is-open'),
+        saved: JSON.parse(localStorage.getItem('kokoro.prefs.v2')).etaScope };
+      pill.click();
+      items().find((b) => b.dataset.key === 'stats').click();
+      const withStats = { text: pill.textContent, stillOpen: menuEl.classList.contains('is-open') };
+      items().find((b) => b.dataset.key === 'stats').click();
+      items().find((b) => b.dataset.key === 'page').click();
+      return { opened, picked, withStats, back: pill.textContent };
+    });
+    console.log('    menu:', JSON.stringify(menu));
+    check('the pill opens a dropdown of scopes, each with its time',
+      menu.opened.open && menu.opened.expanded === 'true' && menu.opened.rows.length === 5
+      && menu.opened.rows.find((r) => r.key === 'page').on === 'true', JSON.stringify(menu.opened));
+    check('picking "Whole paper" shows it, closes the menu and saves it',
+      /^≈.+ left in paper$/.test(menu.picked.text) && menu.picked.closed && menu.picked.saved === 'paper', JSON.stringify(menu.picked));
+    check('the wpm/TTS switch adds them and keeps the menu open',
+      /· \d+ wpm · TTS .+$/.test(menu.withStats.text) && menu.withStats.stillOpen, JSON.stringify(menu.withStats));
+    check('... and page is back', /^≈.+ left on page · /.test(menu.back), menu.back);
     const paper = await frame.evaluate(() => ({
       hidden: document.getElementById('st-paper-panel').hidden,
       cards: [...document.querySelectorAll('#st-paper .st-card')].map((c) => [
@@ -196,6 +222,35 @@ async function run() {
 
     console.log('\n3b. leaving the page sends the pending batch (pagehide beacon, J10)');
     await page.waitForFunction(() => !document.getElementById('stats-dialog').open, null, { timeout: STEP_TIMEOUT_MS });
+    console.log('    ETA scopes inside a chapter');
+    const deep = await page.evaluate(() => {
+      const { state, player } = window.kokoro;
+      const chapter = state.get().tocEntries.filter((e) => e.depth === 0 && e.index > 0)[1];
+      player.setIndex(chapter.index + 1);
+      const pill = document.getElementById('eta-pill');
+      pill.click();
+      const rows = [...document.querySelectorAll('#eta-menu .eta-item')].map((b) => [b.dataset.key, b.disabled, b.lastChild.textContent]);
+      const texts = ['section', 'chapter'].map((k) => {
+        if (!document.getElementById('eta-menu').classList.contains('is-open')) pill.click();
+        document.querySelector(`#eta-menu .eta-item[data-key="${k}"]`).click();
+        return pill.textContent;
+      });
+      if (!document.getElementById('eta-menu').classList.contains('is-open')) pill.click();
+      document.querySelector('#eta-menu .eta-item[data-key="page"]').click();
+      return { rows, texts };
+    });
+    console.log('    in a chapter:', JSON.stringify(deep));
+    check('inside a chapter the dropdown offers section and chapter too',
+      deep.rows.every(([, off]) => !off) && / left in section · /.test(deep.texts[0]) && / left in chapter · /.test(deep.texts[1]),
+      JSON.stringify(deep));
+    await page.click('#eta-pill');
+    await page.waitForTimeout(SETTLE_MS);   // past the menu's fade-in
+    await page.screenshot({ path: join(SHOT_DIR, `eta-menu-${ENGINE}.png`), clip: await page.evaluate(() => {
+      const r = document.getElementById('eta-wrap').getBoundingClientRect();
+      return { x: r.right - 420, y: 0, width: 440, height: 260 };
+    }) });
+    await page.keyboard.press('Escape');
+    check('Escape closes the dropdown', await page.evaluate(() => !document.getElementById('eta-menu').classList.contains('is-open')));
     await playSome(page);
     await page.goto('about:blank');
     const beaconed = await pollSeconds(STEP_TIMEOUT_MS);

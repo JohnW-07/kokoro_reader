@@ -171,10 +171,10 @@ def test_route_without_knobs_renders_neutral(client: TestClient, kokoro: tuple[T
     assert kokoro[1].f0s[-1] == CURVE
 
 
-def test_route_ignores_the_knobs_for_a_siri_voice(
+def test_route_passes_the_knobs_to_a_siri_voice(
     client: TestClient, kokoro: tuple[TTSEngine, FakeKokoro], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Siri has no F0 to shape (pitchMultiplier measured: no effect), so no separate cache entry either."""
+    """V2: Siri is shaped too, after rendering (`shape_audio`), so each setting is cached apart."""
     shapes: list[VoiceShape] = []
     engine = kokoro[0]
     real = engine.synthesize
@@ -183,4 +183,50 @@ def test_route_ignores_the_knobs_for_a_siri_voice(
 
     client.get("/api/tts", params={"text": "Hi.", "voice": "siri_nora", "pitch": 1.1, "expr": 1.3})
 
-    assert shapes == [NEUTRAL]
+    assert shapes == [VoiceShape(1.1, 1.3)]
+
+
+# ── V2: shaping a rendered waveform (Siri) ───────────────────────────────────
+
+SR = 48_000
+
+
+def vowel(f0: float, seconds: float = 1.0) -> np.ndarray:
+    """A glottal-pulse-like buzz whose pitch glides ±20% about `f0`: voiced, with a contour."""
+    t = np.arange(int(SR * seconds)) / SR
+    hz = f0 * (1 + 0.2 * np.sin(2 * np.pi * 1.5 * t))
+    phase = 2 * np.pi * np.cumsum(hz) / SR
+    return (0.3 * sum(np.sin(k * phase) / k for k in range(1, 12))).astype(np.float32)
+
+
+def f0_stats(audio: np.ndarray) -> tuple[float, float]:
+    import parselmouth
+
+    hz = parselmouth.Sound(audio.astype(np.float64), SR).to_pitch(0.01, 75, 600).selected_array["frequency"]
+    voiced = hz[hz > 0]
+    return float(np.median(voiced)), float(np.subtract(*np.percentile(voiced, [75, 25])))
+
+
+def test_shape_audio_neutral_returns_the_same_array() -> None:
+    audio = vowel(200.0)
+    assert voiceshape.shape_audio(audio, SR, NEUTRAL) is audio
+
+
+@pytest.mark.parametrize("pitch", [0.85, 1.15])
+def test_shape_audio_scales_pitch_and_keeps_the_length(pitch: float) -> None:
+    audio = vowel(200.0)
+    out = voiceshape.shape_audio(audio, SR, VoiceShape(pitch, 1.0))
+    assert out.dtype == np.float32 and out.shape == audio.shape
+    assert f0_stats(out)[0] / f0_stats(audio)[0] == pytest.approx(pitch, rel=0.02)
+
+
+@pytest.mark.parametrize("expr", [0.5, 1.5])
+def test_shape_audio_stretches_the_contour(expr: float) -> None:
+    audio = vowel(200.0)
+    out = voiceshape.shape_audio(audio, SR, VoiceShape(1.0, expr))
+    assert f0_stats(out)[1] / f0_stats(audio)[1] == pytest.approx(expr, rel=0.1)
+
+
+def test_shape_audio_leaves_unvoiced_audio_alone() -> None:
+    silence = np.zeros(SR // 2, dtype=np.float32)
+    assert voiceshape.shape_audio(silence, SR, VoiceShape(1.1, 1.3)) is silence

@@ -68,6 +68,7 @@ export function createNav({ state, ui, pdfView, player, follower, jumpTo }) {
     ui.setPageLabels(labels);
     toc = buildToc({ outline: fromPdf.outline, sections: s.sections, sentences: s.sentences });
     panel.render(toc);
+    state.set({ tocEntries: toc.entries });
     panel.markCurrent(currentEntry(toc.entries, s.index));
   }
 

@@ -84,32 +84,68 @@ const MIN_TEXT_CONTRAST = 4.5;
 const tokens = rootTokens(app);
 const TEXT_TOKENS = ['--text', '--text-muted'];
 const SURFACES = ['--bg', '--panel', '--panel-2', '--notes-bg', '--input-bg', '--hover-bg'];
-for (const fg of TEXT_TOKENS) {
-    for (const bg of SURFACES) {
-        const [f, b] = [hex(tokens[fg] ?? ''), hex(tokens[bg] ?? '')];
-        const ratio = f && b ? contrast(f, b) : 0;
-        ok(`   ${fg} on ${bg}: ${ratio.toFixed(2)}:1 ≥ ${MIN_TEXT_CONTRAST}`, ratio >= MIN_TEXT_CONTRAST, `${tokens[fg]} / ${tokens[bg]}`);
-    }
-}
-for (const [fg, bg] of [['--accent', '--panel-2'], ['--on-accent', '--accent'], ['--danger', '--panel-2'], ['--success', '--panel-2'], ['--warn', '--panel-2']]) {
-    const ratio = contrast(hex(tokens[fg]), hex(tokens[bg]));
-    ok(`   ${fg} on ${bg}: ${ratio.toFixed(2)}:1 ≥ ${MIN_TEXT_CONTRAST}`, ratio >= MIN_TEXT_CONTRAST);
-}
+const SOLID_PAIRS = [
+    ['--accent', '--panel-2'], ['--on-accent', '--accent'], ['--on-accent', '--accent-hover'], ['--on-accent', '--danger'],
+    ['--danger', '--panel-2'], ['--success', '--panel-2'], ['--warn', '--panel-2'],
+];
 // Small text sitting on translucent tints: composite the tint over the surface it lands on.
-const rgba = (v) => { const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(v); return m && { rgb: m.slice(1, 4).map(Number), a: Number(m[4]) }; };
+const rgba = (v) => { const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(v ?? ''); return m && { rgb: m.slice(1, 4).map(Number), a: Number(m[4]) }; };
 const over = (base, tint) => base.map((c, i) => tint.a * tint.rgb[i] + (1 - tint.a) * c);
-const layered = (surface, ...tints) => tints.reduce((acc, t) => over(acc, rgba(tokens[t])), hex(tokens[surface]));
 const TINTED_TEXT = [
     ['--accent', ['--panel', '--accent-dim'], 'drop-zone hover'],
     ['--accent', ['--panel', '--accent-dim', '--accent-dim'], 'the contents entry being read'],
     ['--success', ['--panel', '--success-dim'], 'loaded drop zone'],
     ['--text-muted', ['--pressed-bg'], 'a pressed row'],
+    ['--text', ['--panel', '--reading-bg'], 'the Summary sentence being read'],
+    ['--text', ['--panel-2', '--st-hero-from'], 'the stats hero'],
 ];
-for (const [fg, [surface, ...tints], where] of TINTED_TEXT) {
-    const ratio = contrast(hex(tokens[fg]), layered(surface, ...tints));
-    ok(`   ${fg} on ${[surface, ...tints].join(' + ')} (${where}): ${ratio.toFixed(2)}:1 ≥ ${MIN_TEXT_CONTRAST}`, ratio >= MIN_TEXT_CONTRAST);
+/** Every text/surface pair above, for one palette `t` (custom property → value). */
+function checkPalette(t) {
+    const pair = (fg, bg) => {
+        const [f, b] = [hex(t[fg] ?? ''), hex(t[bg] ?? '')];
+        const ratio = f && b ? contrast(f, b) : 0;
+        ok(`   ${fg} on ${bg}: ${ratio.toFixed(2)}:1 ≥ ${MIN_TEXT_CONTRAST}`, ratio >= MIN_TEXT_CONTRAST, `${t[fg]} / ${t[bg]}`);
+    };
+    for (const fg of TEXT_TOKENS) for (const bg of SURFACES) pair(fg, bg);
+    for (const [fg, bg] of SOLID_PAIRS) pair(fg, bg);
+    for (const [fg, [surface, ...tints], where] of TINTED_TEXT) {
+        const tintsOk = tints.every((k) => rgba(t[k]));
+        const ratio = tintsOk && hex(t[surface]) ? contrast(hex(t[fg]), tints.reduce((acc, k) => over(acc, rgba(t[k])), hex(t[surface]))) : 0;
+        ok(`   ${fg} on ${[surface, ...tints].join(' + ')} (${where}): ${ratio.toFixed(2)}:1 ≥ ${MIN_TEXT_CONTRAST}`, ratio >= MIN_TEXT_CONTRAST);
+    }
 }
-ok('   the page is declared light-only', /<meta name="color-scheme" content="light">/.test(html));
+const stats = read('static/css/stats.css');
+const light = { ...tokens, ...rootTokens(stats) };
+checkPalette(light);
+
+console.log('\n3b. docs/19 — every theme clears the same contrast bar (themes.css over the Light tokens)');
+const uncomment = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+/** `{ id: tokens }` for each `:root[data-theme="id"] { }` block in `css`. */
+const themeBlocks = (css) => Object.fromEntries([...css.matchAll(/:root\[data-theme="([\w-]+)"\]\s*\{([^}]*)\}/g)]
+    .map(([, id, body]) => [id, Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, k, v]) => [k, v.trim()]))]));
+const themesCss = uncomment(read('static/css/themes.css'));
+const HC = '@media (prefers-contrast: more)';
+const themes = themeBlocks(themesCss.slice(0, themesCss.indexOf(HC)));
+const themesHc = themeBlocks(themesCss.slice(themesCss.indexOf(HC)));
+const lightHc = rootTokens(app.slice(app.indexOf(HC) + HC.length).replace(/^\s*\{\s*/, '\n'));
+for (const [id, t] of Object.entries(themes)) {
+    console.log(`  — ${id}`);
+    checkPalette({ ...light, ...t });
+    console.log(`  — ${id}, more contrast`);
+    checkPalette({ ...light, ...t, ...(themesHc[id] ?? {}) });
+}
+console.log('  — light, more contrast');
+checkPalette({ ...light, ...lightHc });
+ok('   each theme re-declares every colour token Light has (none inherits a light value by accident)',
+    Object.values(themes).every((t) => ['--bg', '--panel', '--panel-2', '--text', '--text-muted', '--accent', '--on-accent',
+        '--border', '--material-bg', '--shadow-page', '--st-hero-from', '--swatch-edge'].every((k) => k in t)));
+ok('   each theme has a more-contrast variant', Object.keys(themes).every((id) => id in themesHc));
+ok('   paper tokens are not themed: the PDF page stays white, so what is drawn on it stays the same',
+    !/--(reading-bg|selection-bg|scrim-dot|hl-[\w-]+)\s*:/.test(themesCss));
+ok('   the page itself stays white paper', /\.pdf-page-wrap\s*\{[^}]*background:\s*#fff;/.test(uncomment(read('static/css/document.css'))));
+ok('   each theme sets color-scheme (form controls and scrollbars follow)',
+    Object.keys(themes).every((id) => new RegExp(`:root\\[data-theme="${id}"\\]\\s*\\{[^}]*color-scheme:\\s*(light|dark);`).test(themesCss))
+    && /(?:^|\n):root\s*\{[^}]*color-scheme:\s*light;/.test(uncomment(app)));
 
 console.log('\n4. T3 — accessibility preferences are honoured');
 for (const q of ['prefers-reduced-motion: reduce', 'prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
@@ -325,6 +361,26 @@ ok('   its words are for assistive tech only: no second line in the field',
     && declarationsFor(app, '.bufferbar-label')['clip-path'] === 'inset(50%)');
 ok('   [hidden] (no script yet) beats its own display', declarationsFor(app, '#bufferbar[hidden]').display === 'none');
 ok('   the rule tying it to the transport is gone', !/#transport\[hidden\]\s*\+\s*#bufferbar/.test(app));
+
+console.log('\n14. docs/19 — the theme list agrees everywhere, and is applied before the first paint');
+const boot = read('static/js/themeboot.js');
+const bootThemes = JSON.parse(/const THEMES = (\[[^\]]*\]);/.exec(boot)[1].replace(/'/g, '"'));
+ok('   themeboot.js knows exactly Light plus the themes themes.css styles',
+    JSON.stringify([...bootThemes].sort()) === JSON.stringify(['light', ...Object.keys(themes)].sort()), bootThemes.join(','));
+const options = [...html.matchAll(/<select id="themeSelect"[\s\S]*?<\/select>/g)].flatMap(([m]) => [...m.matchAll(/<option value="([\w-]+)"/g)].map((o) => o[1]));
+ok('   the Settings select offers every theme and Match system',
+    JSON.stringify([...options].sort()) === JSON.stringify([...bootThemes, 'system'].sort()), options.join(','));
+ok('   ... under its own fold-out heading in the Settings tab',
+    /<details id="themeOptions"[^>]*>\s*<summary class="label">Appearance<\/summary>/.test(panelHtml('settings'))
+    && panelHtml('settings').includes('id="themeSelect"'));
+ok('   ... styled like the other fold-outs', /#themeOptions\s*\{|#themeOptions,/.test(app) && /#themeOptions\[open\] summary::before/.test(app));
+for (const [name, page] of [['index.html', html], ['stats.html', read('static/stats.html')]]) {
+    const head = page.slice(0, page.indexOf('</head>'));
+    const bootAt = head.indexOf('<script src="/static/js/themeboot.js"></script>');
+    ok(`   ${name}: themeboot.js is a blocking classic script ahead of every stylesheet`,
+        bootAt > 0 && bootAt < head.indexOf('<link rel="stylesheet"'));
+    ok(`   ${name}: links themes.css`, head.includes('<link rel="stylesheet" href="/static/css/themes.css">'));
+}
 
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'}: ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

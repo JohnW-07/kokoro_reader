@@ -85,7 +85,7 @@ export function createTtsClient(options = {}) {
   const tasks   = new Map();   // cacheKey → task (queued OR running)
   const queue   = [];          // tasks not yet started, FIFO within priority
   const running = new Set();   // tasks with a live request
-  const counts  = { hits: 0, misses: 0, errors: 0, aborts: 0 };
+  const counts  = { hits: 0, misses: 0, errors: 0, aborts: 0, fetchMs: 0 };
   const listeners = new Set(); // onChange subscribers (N1 buffer meter)
 
   let currentKey = null;       // pinned sentence index — never revoked (D5)
@@ -202,10 +202,13 @@ export function createTtsClient(options = {}) {
       task.timedOut = true;
       controller.abort();
     }, timeoutMs);
+    const started = Date.now();
     try {
       const res = await fetch(urlFor(task), { signal: controller.signal });
       if (!res.ok) throw httpError(res);
-      return URL.createObjectURL(await res.blob());
+      const blob = await res.blob();
+      counts.fetchMs += Date.now() - started;   // the ETA pill's "TTS" figure: successful fetches only
+      return URL.createObjectURL(blob);
     } catch (err) {
       throw classify(err, task);
     } finally {
@@ -464,6 +467,7 @@ export function createTtsClient(options = {}) {
       misses: counts.misses,
       errors: counts.errors,
       aborts: counts.aborts,
+      fetchMs: counts.fetchMs,
     };
   }
 

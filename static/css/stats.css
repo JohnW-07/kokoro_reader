@@ -1,5 +1,5 @@
 /* ── Reading Wrapped (stats.html) ──────────────────────────────────────────
-   Builds on app.css's tokens. Light only, like the reader (D6).              */
+   Builds on app.css's tokens; themes.css re-colours it like the reader (docs/19). */
 :root {
   --st-max-w:     60rem;
   --st-hero-fs:   clamp(3rem, 2rem + 6vw, 5.5rem);
@@ -9,7 +9,6 @@
   --st-hero-from: rgba(0, 88, 176, 0.14);
   --st-hero-to:   rgba(24, 113, 47, 0.08);
   --st-bar:       rgba(0, 88, 176, 0.35);
-  color-scheme: light;
 }
 
 body.stats-page {

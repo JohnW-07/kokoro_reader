@@ -23,6 +23,7 @@ from typing import Any, Sequence
 import numpy as np
 import soundfile as sf
 
+from kokoro_reader import voiceshape
 from kokoro_reader.tts_engine import TTSEngine, TTSError, TTSVoiceUnavailable
 
 MODEL_ID = "apple-siri"       # part of the cache key, so Siri audio never collides with Kokoro's
@@ -114,7 +115,8 @@ class AppleModel:
         return list(SIRI_VOICES)
 
     def generate(self, text: str, voice: str, speed: float = 1.0, sample_rate: int | None = None) -> AppleResult:
-        """Render `text`. `sample_rate` is ignored: Siri renders at its own rate (48 kHz)."""
+        """Render `text`, shaped by the thread's voice shape (V2). `sample_rate` is ignored:
+        Siri renders at its own rate (48 kHz)."""
         voice_id = SIRI_VOICES.get(voice)
         if voice_id is None:
             raise TTSError(f"unknown Siri voice {voice!r}")
@@ -127,7 +129,8 @@ class AppleModel:
                     raise TTSVoiceUnavailable(f"the Siri voice {voice!r} is not installed on this Mac ({error})")
                 raise TTSError(f"Siri synthesis failed: {error}")
             audio, rate = sf.read(str(out), dtype="float32", always_2d=True)
-        return AppleResult(audio=audio.mean(axis=1), sample_rate=int(rate))
+        mono = audio.mean(axis=1)
+        return AppleResult(audio=voiceshape.shape_audio(mono, int(rate), voiceshape.current()), sample_rate=int(rate))
 
 
 _engine: TTSEngine | None = None

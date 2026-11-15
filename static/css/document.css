@@ -123,7 +123,7 @@ body.notes-collapsed #view-status { transition-timing-function: var(--ease-exit)
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
-#page-pill:hover { background: var(--hover-bg); }
+#page-pill:hover, #eta-pill:hover { background: var(--hover-bg); }
 /* F1: the hold on following, said where the eye already is; accent so it reads as "the page stopped". */
 #follow-pill {
   border: var(--hairline) solid var(--accent);
@@ -156,7 +156,19 @@ body.notes-collapsed #view-status { transition-timing-function: var(--ease-exit)
 
 /* N11: the ETA rides beside the page pill, quieter; a narrow window (layout.js NARROW_QUERY) keeps only the page. */
 #eta-pill { color: var(--text-muted); font-weight: 400; white-space: nowrap; }
-@media (max-width: 900px) { #eta-pill { display: none; } }
+@media (max-width: 900px) { #eta-wrap { display: none; } }
+/* Its dropdown: the read menu's material, hung from the pill's right edge. */
+#eta-wrap { position: relative; }
+#eta-menu { position: absolute; top: calc(100% + var(--space-1)); right: 0; transform-origin: top right; }
+#eta-menu { min-width: 13rem; }
+#eta-menu .eta-item { display: flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; }   /* outranks .read-menu-item, defined below */
+.eta-item::before { content: ''; width: 1em; flex: none; }
+.eta-item[aria-checked="true"]::before { content: '✓'; }
+.eta-item-name { flex: 1; padding-right: var(--space-4); }
+.eta-item-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.eta-item:hover .eta-item-time, .eta-item:focus-visible .eta-item-time { color: inherit; }
+.eta-item:disabled { opacity: 0.4; background: transparent; color: var(--text); }
+.eta-sep { height: var(--hairline); margin: var(--space-1) var(--space-2); background: var(--material-border); }
 
 /* The notes handle: one button, present in both states, in the same floating material as
    the rail it faces across the window. Accent while the column is open, the way the rail

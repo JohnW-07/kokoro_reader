@@ -93,8 +93,8 @@ def get_tts(
     voice: str = Query(config.DEFAULT_VOICE),
     speed: float = Query(1.0),
     pause: str = Query(DEFAULT_PAUSE, description="Beat after the sentence (C1/N5)"),
-    pitch: float = Query(1.0, description="Kokoro F0 scale (V1)"),
-    expr: float = Query(1.0, description="Kokoro F0 range about its mean (V1)"),
+    pitch: float = Query(1.0, description="F0 scale (V1; Siri: V2)"),
+    expr: float = Query(1.0, description="F0 range about its mean (V1; Siri: V2)"),
 ) -> Response:
     """Synthesise `text` and return WAV bytes. Sync on purpose — see D3."""
     clean = _validated_text(text)
@@ -105,8 +105,8 @@ def get_tts(
     try:
         siri = is_siri_voice(voice)
         engine = get_apple_engine() if siri else get_engine()  # siri_*: dev switch
-        # Siri has no F0 to shape (pitchMultiplier measured: no effect, docs/18).
-        shape = NEUTRAL if siri else VoiceShape.clamped(pitch, expr)
+        # Siri is shaped after rendering (voiceshape.shape_audio): pitchMultiplier does nothing.
+        shape = VoiceShape.clamped(pitch, expr)
         hit = _is_cached(engine, clean, voice, speed, shape)
         wav = engine.synthesize(clean, voice=voice, speed=speed, pause=pause, shape=shape)
     except TTSBusy as exc:

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light">
 <title>Kokoro Reader</title>
+<!-- Theme before the first paint (docs/19): a blocking classic script, ahead of the stylesheets. -->
+<script src="/static/js/themeboot.js"></script>
 <link rel="stylesheet" href="/static/css/app.css">
 <link rel="stylesheet" href="/static/css/sidebar.css">
 <link rel="stylesheet" href="/static/css/document.css">
@@ -14,6 +16,7 @@
 <link rel="stylesheet" href="/static/css/summary.css">
 <link rel="stylesheet" href="/static/css/notesedit.css">
 <link rel="stylesheet" href="/static/css/statsdialog.css">
+<link rel="stylesheet" href="/static/css/themes.css">
 <script src="/static/pdf.min.js"></script>
 </head>
 <body>
@@ -146,7 +149,21 @@
         </div>
       </details>
 
-      <!-- V1: personalise the voice. Pitch/Expressiveness: Kokoro renders them (voiceshape.js); Siri ignores them. -->
+      <!-- docs/19: colour themes. themeboot.js applies the choice; settings.js saves it. -->
+      <details id="themeOptions" open>
+        <summary class="label">Appearance</summary>
+        <div class="opts">
+          <select id="themeSelect" aria-label="Theme">
+            <option value="light">Light</option>
+            <option value="sepia">Sepia</option>
+            <option value="dark">Dark</option>
+            <option value="dark-warm">Dark warm</option>
+            <option value="system">Match system</option>
+          </select>
+        </div>
+      </details>
+
+            <!-- V1: personalise the voice. Pitch/Expressiveness: Kokoro renders them; Siri is reshaped after rendering (voiceshape.js). -->
       <details id="voiceTune">
         <summary class="label">Personalise voice</summary>
         <div class="tune">
@@ -178,6 +195,7 @@
             <input type="range" id="evenSlider" min="0" max="1" step="0.1" value="0" aria-label="Even out volume">
             <span class="tune-val" id="evenVal">Off</span>
           </div>
+          <button id="tuneResetBtn" class="ghost-btn" type="button">Reset to default</button>
         </div>
       </details>
     </div>
@@ -225,8 +243,13 @@
       <input id="page-go-input" type="text" inputmode="text" autocomplete="off" spellcheck="false"
              placeholder="Page" aria-label="Go to page: a printed number, or # and the PDF page">
     </form>
-    <!-- N11 (etastatus.js): time left at the learnt speaking rate; not a live region. -->
-    <div id="eta-pill" hidden title="Estimated listening time left, at this voice and speed"></div>
+    <!-- N11 (etastatus.js): time left at the learnt speaking rate; not a live region. Its
+         dropdown (etamenu.js) picks page, section, chapter or whole paper, and the extras. -->
+    <div id="eta-wrap">
+      <button id="eta-pill" type="button" hidden aria-haspopup="menu" aria-controls="eta-menu" aria-expanded="false"
+              title="Estimated listening time left, at this voice and speed. TTS: time spent fetching audio this session."></button>
+      <div id="eta-menu" class="read-menu" role="menu" aria-label="Time left in"></div>
+    </div>
     <!-- The notes column's handle. It rides the column's edge instead of swapping for a
          twin the way the sidebar does, so there is one place to look in either state. -->
     <button class="status-btn" id="notesToggleBtn" type="button" aria-controls="notes-column"

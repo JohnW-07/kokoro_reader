@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from kokoro_reader import apple_engine, config
+from kokoro_reader import apple_engine, config, voiceshape
 from kokoro_reader.apple_engine import AppleModel, SwiftHost, is_siri_voice, rate_for_speed
 from kokoro_reader.routes import tts as tts_routes
 from kokoro_reader.tts_engine import TTSEngine, TTSError
@@ -70,6 +70,16 @@ def test_host_failure_is_a_tts_error() -> None:
     model = AppleModel(host=FakeHost(reply={"ok": False, "error": "unknown voice: x"}))
     with pytest.raises(TTSError, match="unknown voice"):
         model.generate("Hello.", voice="siri_nora")
+
+
+def test_generate_shapes_the_audio_by_the_threads_voice_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    """V2: Siri has no F0 to hook, so the rendered waveform is reshaped instead."""
+    calls: list[tuple[int, voiceshape.VoiceShape]] = []
+    monkeypatch.setattr(voiceshape, "shape_audio", lambda a, rate, shape: calls.append((rate, shape)) or a)
+    shape = voiceshape.VoiceShape(1.1, 1.3)
+    with voiceshape.using(shape):
+        AppleModel(host=FakeHost()).generate("Hello.", voice="siri_nora")
+    assert calls == [(HOST_SR, shape)]
 
 
 def test_unknown_siri_voice_is_refused_before_the_host_is_asked() -> None:

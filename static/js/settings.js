@@ -5,21 +5,24 @@
 
 import { formatSpeed } from './layout.js';
 import { initEngineSwitch, reflectEngine } from './engineswitch.js';
+import { initThemeSwitch } from './themeswitch.js';
 import { clampPitch, clampExpr, formatPitch, formatExpr } from './voiceshape.js';
 import { clampDb, clampEven, formatDb, formatEven } from './voicefx.js';
 
 /**
  * V1: the "Personalise voice" sliders — state field, clamp, label. Pitch and Expressiveness are
  * rendered by Kokoro (a change drops cached audio); `isLive` ones are effects applied to the
- * audio as it plays (voicefx.js), so they change what is heard while dragging.
+ * audio as it plays (voicefx.js), so they change what is heard while dragging. `neutral` is
+ * what Reset restores.
  */
 const TUNE_SLIDERS = [
-  { id: 'pitchSlider', label: 'pitchVal', field: 'voicePitch', clamp: clampPitch, format: formatPitch },
-  { id: 'exprSlider', label: 'exprVal', field: 'voiceExpr', clamp: clampExpr, format: formatExpr },
-  { id: 'bassSlider', label: 'bassVal', field: 'fxBass', clamp: clampDb, format: formatDb, isLive: true },
-  { id: 'trebleSlider', label: 'trebleVal', field: 'fxTreble', clamp: clampDb, format: formatDb, isLive: true },
-  { id: 'evenSlider', label: 'evenVal', field: 'fxEven', clamp: clampEven, format: formatEven, isLive: true },
+  { id: 'pitchSlider', label: 'pitchVal', field: 'voicePitch', clamp: clampPitch, format: formatPitch, neutral: 1 },
+  { id: 'exprSlider', label: 'exprVal', field: 'voiceExpr', clamp: clampExpr, format: formatExpr, neutral: 1 },
+  { id: 'bassSlider', label: 'bassVal', field: 'fxBass', clamp: clampDb, format: formatDb, neutral: 0, isLive: true },
+  { id: 'trebleSlider', label: 'trebleVal', field: 'fxTreble', clamp: clampDb, format: formatDb, neutral: 0, isLive: true },
+  { id: 'evenSlider', label: 'evenVal', field: 'fxEven', clamp: clampEven, format: formatEven, neutral: 0, isLive: true },
 ];
+const NEUTRAL_TUNE = Object.fromEntries(TUNE_SLIDERS.map((t) => [t.field, t.neutral]));
 
 const ACCENTS = { a: 'US', b: 'UK', e: 'Spanish', f: 'French', h: 'Hindi', i: 'Italian', j: 'Japanese', p: 'Portuguese', z: 'Chinese' };
 const GENDERS = { f: 'Female', m: 'Male' };
@@ -38,12 +41,7 @@ export function createSettings({ api, state, ui, clearAudio, applyFx = () => {} 
     reflectEngine(ui.el('voiceSelect'), s);
     ui.el('speedSlider').value = String(s.speed);
     ui.setSpeedLabel(formatSpeed(s.speed));
-    for (const t of TUNE_SLIDERS) {
-      const slider = ui.el(t.id);
-      if (slider) slider.value = String(s[t.field]);
-      const label = ui.el(t.label);
-      if (label) label.textContent = t.format(s[t.field]);
-    }
+    reflectTune(s);
     applyFx();
     ui.bindOptions(s.options, (patch) => {
       state.set({ options: { ...state.get().options, ...patch } });
@@ -53,8 +51,34 @@ export function createSettings({ api, state, ui, clearAudio, applyFx = () => {} 
     });
   }
 
+  /** Show `s`'s "Personalise voice" values in its sliders and labels. */
+  function reflectTune(s) {
+    for (const t of TUNE_SLIDERS) {
+      const slider = ui.el(t.id);
+      if (slider) slider.value = String(s[t.field]);
+      const label = ui.el(t.label);
+      if (label) label.textContent = t.format(s[t.field]);
+    }
+  }
+
+  /** Reset: every slider back to neutral; cached audio is dropped only if a rendered knob moved. */
+  function bindTuneReset() {
+    const btn = ui.el('tuneResetBtn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const before = state.get();
+      const isReshaped = TUNE_SLIDERS.some((t) => !t.isLive && before[t.field] !== t.neutral);
+      state.set(NEUTRAL_TUNE);
+      state.savePrefs();
+      reflectTune(state.get());
+      applyFx();
+      if (isReshaped) clearAudio();
+    });
+  }
+
   function bind() {
     initEngineSwitch({ state, ui, onSwitch: clearAudio });
+    initThemeSwitch({ state, ui });
 
     const slider = ui.el('speedSlider');
     slider.addEventListener('input', (e) => {
@@ -67,6 +91,7 @@ export function createSettings({ api, state, ui, clearAudio, applyFx = () => {} 
       clearAudio();
     });
     TUNE_SLIDERS.forEach(bindTune);
+    bindTuneReset();
   }
 
   /** Like speed: the label (and a live effect) follows the drag; letting go saves, and drops
@@ -122,5 +147,5 @@ export function createSettings({ api, state, ui, clearAudio, applyFx = () => {} 
     }
   }
 
-  return { applyPrefs, bind, probeLlm, loadVoices };
+  return { applyPrefs, bind, bindTuneReset, probeLlm, loadVoices };
 }

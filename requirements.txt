@@ -16,6 +16,8 @@ pydantic==2.13.4
 kokoro-mlx==0.1.2
 numpy==2.4.6
 soundfile==0.13.1
+# Siri pitch/expressiveness (V2): Praat's PSOLA. GPL-3; imported only for a shaped Siri render.
+praat-parselmouth==0.4.7
 
 # Optional: the local LLM that rewrites equations into spoken English. The app runs
 # without it — kokoro_reader/llm.py degrades to pass-through when it is absent.
